@@ -24,8 +24,7 @@ import {
 } from '../../types/retail.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
-import { computeDecisionOutcomes } from '../../services/calculations.ts';
-import { saveScenarioToFirestore, deleteScenarioFromFirestore } from '../../services/firebase.ts';
+
 
 interface DecisionStudioViewProps {
   metadata: DatasetMetadata | null;
@@ -42,70 +41,146 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
   onRefreshScenarios,
   onNavigate,
 }) => {
-  if (!metadata || metadata.row_count === 0) {
-    return (
-      <EmptyDatasetState
-        moduleName="Decision Studio"
-        description="Upload a CSV dataset to simulate retail decision scenarios, evaluate price/margin tradeoffs, and test inventory feasibility against configured business rules."
-        onOpenUpload={() => onNavigate('explorer')}
-      />
-    );
-  }
-
-  const productOptions = metadata.product_items && metadata.product_items.length > 0
+  const productOptions = metadata?.product_items && metadata.product_items.length > 0
     ? metadata.product_items
-    : (metadata.products || []).map(p => ({ id: p, name: p }));
+    : (metadata?.products || []).map(product => ({ id: product, name: product }));
 
-  // Input parameters for simulation
-  const [name, setName] = useState<string>('Q4 Promotional Decision Scenario');
-  const [selectedProduct, setSelectedProduct] = useState<string>(productOptions[0]?.id || '');
-  const [sellingPrice, setSellingPrice] = useState<number>(50);
-  const [unitCost, setUnitCost] = useState<number>(20);
-  const [discountPct, setDiscountPct] = useState<number>(10);
-  const [promoCost, setPromoCost] = useState<number>(200);
-  const [advertisingCost, setAdvertisingCost] = useState<number>(400);
-  const [inventory, setInventory] = useState<number>(280);
-  const [isPromo, setIsPromo] = useState<boolean>(true);
-  const [competitorPrice, setCompetitorPrice] = useState<number>(92);
+  const [name, setName] = useState<string>('Retail Decision Scenario');
+  const [selectedProduct, setSelectedProduct] = useState<string>('');
+  const [sellingPrice, setSellingPrice] = useState<number | ''>('');
+  const [unitCost, setUnitCost] = useState<number | ''>('');
+  const [discountPct, setDiscountPct] = useState<number>(0);
+  const [promoCost, setPromoCost] = useState<number>(0);
+  const [advertisingCost, setAdvertisingCost] = useState<number>(0);
+  const [inventory, setInventory] = useState<number | ''>('');
+  const [isPromo, setIsPromo] = useState<boolean>(false);
+  const [competitorPrice, setCompetitorPrice] = useState<number | ''>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [productSummary, setProductSummary] = useState<any>(null);
+  const [previewResult, setPreviewResult] = useState<ScenarioSimulationResult | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
 
+  const firstProductId = productOptions[0]?.id || '';
   React.useEffect(() => {
-    if (productOptions.length > 0 && !productOptions.some(p => p.id === selectedProduct)) {
-      setSelectedProduct(productOptions[0].id);
+    if (firstProductId && !productOptions.some(product => product.id === selectedProduct)) {
+      setSelectedProduct(firstProductId);
     }
-  }, [productOptions, selectedProduct]);
+    if (!firstProductId) setSelectedProduct('');
+  }, [metadata?.id, firstProductId, selectedProduct]);
 
-  // Model-grounded demand estimation
-  const effectivePrice = sellingPrice * (1 - discountPct / 100);
-  // Estimate demand from empirical elasticity (~ -1.2 to -1.6)
-  const baseUnits = 220; // baseline monthly expected volume
-  const priceRatio = effectivePrice / sellingPrice;
-  const promoUplift = isPromo ? 1.25 : 1.0;
-  const estimatedDemand = Math.max(1, Math.round(baseUnits * Math.pow(priceRatio, -1.35) * promoUplift));
+  // Populate only fields that actually exist in the uploaded dataset.
+  React.useEffect(() => {
+    if (!metadata || !selectedProduct) {
+      setProductSummary(null);
+      setPreviewResult(null);
+      setMissingFields([]);
+      return;
+    }
+    const controller = new AbortController();
+    setProductSummary(null);
+    setPreviewResult(null);
+    setErrorMsg(null);
+    fetch('/api/dataset/product-summary?product_id=' + encodeURIComponent(selectedProduct), {
+      signal: controller.signal,
+    })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to inspect the selected product.');
+        return data;
+      })
+      .then(summary => {
+        setProductSummary(summary);
+        setSellingPrice(typeof summary.average_unit_price === 'number' ? summary.average_unit_price : '');
+        setUnitCost(typeof summary.average_unit_cost === 'number' ? summary.average_unit_cost : '');
+        setInventory(typeof summary.average_inventory_on_hand === 'number' ? summary.average_inventory_on_hand : '');
+        setDiscountPct(typeof summary.average_discount_pct === 'number' ? summary.average_discount_pct : 0);
+        setCompetitorPrice(typeof summary.average_competitor_price === 'number' ? summary.average_competitor_price : '');
+        const missing = [];
+        if (summary.average_unit_price === null) missing.push('selling price');
+        if (summary.average_unit_cost === null) missing.push('unit cost');
+        if (summary.average_inventory_on_hand === null) missing.push('inventory');
+        setMissingFields(missing);
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          setProductSummary(null);
+          setErrorMsg(error.message || 'Unable to load product summary.');
+        }
+      });
+    return () => controller.abort();
+  }, [metadata?.id, selectedProduct]);
 
-  // Compute outcomes using verified formulas
-  const outcomes = computeDecisionOutcomes({
-    demand: estimatedDemand,
-    inventory,
-    selling_price: effectivePrice,
-    unit_cost: unitCost,
-    promotion_cost: promoCost,
-    advertising_cost: advertisingCost,
-  });
+  const validPrice = typeof sellingPrice === 'number' && Number.isFinite(sellingPrice) && sellingPrice > 0;
+  const validCost = typeof unitCost === 'number' && Number.isFinite(unitCost) && unitCost >= 0;
+  const validInventory = typeof inventory === 'number' && Number.isFinite(inventory) && inventory >= 0;
+  const canPreview = Boolean(metadata && selectedProduct && productSummary && validPrice && validCost && validInventory);
+  const effectivePrice = validPrice ? sellingPrice * (1 - discountPct / 100) : null;
 
-  // Constraint validation
-  const violatedConstraints: string[] = [];
-  if (outcomes.profit_margin_pct < constraints.min_profit_margin_pct) {
-    violatedConstraints.push(`Profit margin ${outcomes.profit_margin_pct}% is below floor ${constraints.min_profit_margin_pct}%`);
-  }
-  if (outcomes.stock_out_risk_percent > constraints.max_stock_out_risk_pct) {
-    violatedConstraints.push(`Stock-out risk ${outcomes.stock_out_risk_percent}% exceeds limit ${constraints.max_stock_out_risk_pct}%`);
-  }
-  const isFeasible = violatedConstraints.length === 0;
+  // All scenario outputs come from the same server-side pathway used to save the scenario.
+  // If required inputs are absent, do not display made-up preview numbers.
+  React.useEffect(() => {
+    if (!canPreview || effectivePrice === null || typeof sellingPrice !== 'number' ||
+        typeof unitCost !== 'number' || typeof inventory !== 'number') {
+      setPreviewResult(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setPreviewLoading(true);
+    setPreviewResult(null);
+    const timer = window.setTimeout(() => {
+      fetch('/api/scenarios/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          name,
+          product_id: selectedProduct,
+          selling_price: sellingPrice,
+          unit_cost: unitCost,
+          discount_pct: discountPct,
+          promotion_cost: promoCost,
+          advertising_cost: advertisingCost,
+          inventory,
+          competitor_price: typeof competitorPrice === 'number' ? competitorPrice : undefined,
+          is_promo: isPromo,
+        }),
+      })
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Unable to calculate scenario preview.');
+          return data as ScenarioSimulationResult;
+        })
+        .then(result => setPreviewResult(result))
+        .catch(error => {
+          if (error.name !== 'AbortError') setErrorMsg(error.message || 'Scenario preview failed.');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setPreviewLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    canPreview, effectivePrice, name, selectedProduct, sellingPrice, unitCost,
+    discountPct, promoCost, advertisingCost, inventory, competitorPrice, isPromo,
+  ]);
 
   const handleSaveScenario = async () => {
+    if (!canPreview || typeof sellingPrice !== 'number' || typeof unitCost !== 'number' ||
+        typeof inventory !== 'number') {
+      setErrorMsg('Enter a valid selling price, unit cost, and inventory quantity. Values missing from the dataset must be supplied explicitly before financial outcomes can be calculated.');
+      return;
+    }
     setIsSaving(true);
+    setErrorMsg(null);
     try {
       const payload: ScenarioInput = {
         name,
@@ -116,25 +191,25 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
         promotion_cost: promoCost,
         advertising_cost: advertisingCost,
         inventory,
-        competitor_price: competitorPrice,
+        ...(typeof competitorPrice === 'number' ? { competitor_price: competitorPrice } : {}),
         is_promo: isPromo,
       };
 
-      const res = await fetch('/api/scenarios', {
+      const response = await fetch('/api/scenarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save the scenario.');
 
-      if (res.ok) {
-        const savedData = await res.json();
-        saveScenarioToFirestore(savedData).catch(err => console.warn('Firestore backup:', err));
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2500);
-        onRefreshScenarios();
-      }
-    } catch (err) {
-      console.error('Failed to save scenario:', err);
+      // Persisting this scenario to Firestore is intentionally not used as a data source:
+      // scenarios must belong to the currently active uploaded dataset.
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 2500);
+      onRefreshScenarios();
+    } catch (error: any) {
+      setErrorMsg(error.message || 'Failed to save scenario.');
     } finally {
       setIsSaving(false);
     }
@@ -143,7 +218,6 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
   const handleDeleteScenario = async (id: string) => {
     try {
       await fetch(`/api/scenarios/${id}`, { method: 'DELETE' });
-      deleteScenarioFromFirestore(id).catch(err => console.warn('Firestore delete:', err));
       onRefreshScenarios();
     } catch (err) {
       console.error('Failed to delete scenario:', err);
@@ -226,27 +300,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               value={selectedProduct}
               onChange={(e) => {
                 setSelectedProduct(e.target.value);
-                if (e.target.value === 'PRD-101') {
-                  setSellingPrice(285);
-                  setUnitCost(95);
-                  setInventory(260);
-                } else if (e.target.value === 'PRD-102') {
-                  setSellingPrice(165);
-                  setUnitCost(52);
-                  setInventory(420);
-                } else if (e.target.value === 'PRD-103') {
-                  setSellingPrice(220);
-                  setUnitCost(78);
-                  setInventory(180);
-                } else if (e.target.value === 'PRD-104') {
-                  setSellingPrice(68);
-                  setUnitCost(21);
-                  setInventory(580);
-                } else {
-                  setSellingPrice(95);
-                  setUnitCost(29);
-                  setInventory(340);
-                }
+          
               }}
               className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-xs text-white focus:outline-none focus:border-[#E2B774]"
             >
