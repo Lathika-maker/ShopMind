@@ -61,6 +61,58 @@ export function splitCSVLine(line: string): string[] {
 }
 
 /**
+ * Parse a complete CSV document, respecting escaped quotes, commas, CRLF/LF,
+ * and line breaks embedded inside quoted fields. Blank physical lines are ignored.
+ * Throws on an unterminated quoted field so malformed uploads are not misread.
+ */
+export function parseCSVText(content: string): string[][] {
+  const input = content.replace(/^\uFEFF/, '');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (char === '"') {
+      if (inQuotes && input[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(field.trim());
+      field = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && input[i + 1] === '\n') i++;
+      row.push(field.trim());
+      field = '';
+      if (row.some(value => value.trim().length > 0)) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    field += char;
+  }
+
+  if (inQuotes) {
+    throw new Error('CSV contains an unterminated quoted field. Check double quotes around text values.');
+  }
+
+  row.push(field.trim());
+  if (row.some(value => value.trim().length > 0)) rows.push(row);
+  return rows;
+}
+
+/**
  * Infer column names to canonical fields
  */
 export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
@@ -157,8 +209,18 @@ export function parseAndValidateCSV(
     };
   }
 
-  const rawLines = csvContent.split(/\r?\n/).filter(line => line.trim().length > 0);
-  if (rawLines.length < 2) {
+  let parsedRows: string[][];
+  try {
+    parsedRows = parseCSVText(csvContent);
+  } catch (error: any) {
+    return {
+      success: false,
+      errors: [error?.message || 'Unable to parse CSV. Check quoting and delimiters.'],
+      warnings: [],
+    };
+  }
+
+  if (parsedRows.length < 2) {
     return {
       success: false,
       errors: ['Insufficient file content. The CSV must contain a header row and at least 1 observation row.'],
@@ -167,7 +229,7 @@ export function parseAndValidateCSV(
   }
 
   // Extract and validate headers
-  const headers = splitCSVLine(rawLines[0]);
+  const headers = parsedRows[0].map(header => header.trim());
   const seenHeaders = new Set<string>();
   const duplicateHeaders: string[] = [];
 
@@ -275,11 +337,16 @@ export function parseAndValidateCSV(
   const seenDateProdKeys = new Set<string>();
   let duplicateCount = 0;
 
-  for (let i = 1; i < rawLines.length; i++) {
+  for (let i = 1; i < parsedRows.length; i++) {
     const lineNum = i + 1;
-    const values = splitCSVLine(rawLines[i]);
-    
-    // Create row lookup
+    const values = parsedRows[i];
+
+    if (values.length !== headers.length) {
+      errors.push(`Row ${lineNum}: Expected ${headers.length} fields but found ${values.length}. Check for missing separators or malformed quoting.`);
+      continue;
+    }
+
+    // Create row lookup from the parsed record, not by splitting physical lines.
     const row: Record<string, string> = {};
     headers.forEach((h, idx) => {
       row[h] = values[idx] !== undefined ? values[idx].trim() : '';
