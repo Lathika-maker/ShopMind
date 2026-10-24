@@ -49,7 +49,7 @@ export function splitCSVLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       result.push(current.trim());
       current = '';
     } else {
@@ -65,8 +65,36 @@ export function splitCSVLine(line: string): string[] {
  * and line breaks embedded inside quoted fields. Blank physical lines are ignored.
  * Throws on an unterminated quoted field so malformed uploads are not misread.
  */
+/**
+ * Detect common CSV delimiters using the first logical header row.
+ * Counts only separators outside quoted header text.
+ */
+export function detectCSVDelimiter(content: string): ',' | ';' | '\t' | '|' {
+  const input = content.replace(/^\uFEFF/, '');
+  const counts: Record<string, number> = { ',': 0, ';': 0, '\t': 0, '|': 0 };
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char === '"') {
+      if (inQuotes && input[i + 1] === '"') {
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if ((char === '\n' || char === '\r') && !inQuotes) break;
+    if (!inQuotes && Object.prototype.hasOwnProperty.call(counts, char)) counts[char]++;
+  }
+
+  const delimiter = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] as ',' | ';' | '\t' | '|';
+  return counts[delimiter] > 0 ? delimiter : ',';
+}
+
 export function parseCSVText(content: string): string[][] {
   const input = content.replace(/^\uFEFF/, '');
+  const delimiter = detectCSVDelimiter(input);
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
@@ -153,6 +181,37 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   }
 
   return mapping;
+}
+
+/**
+ * Parse common retail numeric formats without guessing decimal conventions.
+ * Accepts currency symbols, thousands separators, and an optional percent sign.
+ * Returns null for ambiguous or non-numeric values.
+ */
+export function parseNumericValue(value: string, allowPercent = false): number | null {
+  if (typeof value !== 'string') return null;
+  let text = value.trim();
+  if (!text) return null;
+
+  let isParenthesizedNegative = false;
+  if (text.startsWith('(') && text.endsWith(')')) {
+    isParenthesizedNegative = true;
+    text = text.slice(1, -1).trim();
+  }
+
+  text = text.replace(/[$£€₹¥]/g, '').trim();
+  if (allowPercent && text.endsWith('%')) text = text.slice(0, -1).trim();
+
+  if (/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(text)) {
+    text = text.replace(/,/g, '');
+  } else if (/^[+-]?\d{1,3}( \d{3})+(\.\d+)?$/.test(text)) {
+    text = text.replace(/ /g, '');
+  }
+
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) return null;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) return null;
+  return isParenthesizedNegative ? -parsed : parsed;
 }
 
 /**
@@ -407,11 +466,12 @@ export function parseAndValidateCSV(
       errors.push(`Row ${lineNum}: Missing required units sold value.`);
       continue;
     }
-    const units = Number(rawUnits);
-    if (isNaN(units)) {
+    const parsedUnits = parseNumericValue(rawUnits);
+    if (parsedUnits === null) {
       errors.push(`Row ${lineNum}: Invalid non-numeric units sold value "${rawUnits}".`);
       continue;
     }
+    const units = parsedUnits;
     if (units < 0) {
       errors.push(`Row ${lineNum}: Invalid negative units sold (${units}). Demand cannot be negative.`);
       continue;
@@ -438,12 +498,12 @@ export function parseAndValidateCSV(
     // Never infer price as revenue / quantity: that can create a false price-response signal.
     let price = 0;
     if (priceCol && priceCol !== '__derive_unit_price_from_revenue__' && row[priceCol] !== undefined && row[priceCol] !== '') {
-      const p = Number(row[priceCol]);
-      if (!Number.isFinite(p) || p < 0) {
+      const parsedPrice = parseNumericValue(row[priceCol]);
+      if (parsedPrice === null || parsedPrice < 0) {
         errors.push(`Row ${lineNum}: Invalid price value "${row[priceCol]}". Price must be a non-negative number.`);
         continue;
       }
-      price = p;
+      price = parsedPrice;
     } else if (priceCol === '__derive_unit_price_from_revenue__') {
       errors.push('Unit price cannot be derived from total revenue for price-sensitivity modelling. Map a real unit-price column instead.');
       continue;
@@ -453,8 +513,8 @@ export function parseAndValidateCSV(
     let revenue: number | undefined;
     if (revenueCol && row[revenueCol] !== undefined && row[revenueCol].trim() !== '') {
       const rawRevenue = row[revenueCol].trim();
-      const revenueValue = Number(rawRevenue);
-      if (!Number.isFinite(revenueValue) || revenueValue < 0) {
+      const revenueValue = parseNumericValue(rawRevenue);
+      if (revenueValue === null || revenueValue < 0) {
         errors.push(`Row ${lineNum}: Invalid revenue value "${rawRevenue}". Revenue must be a non-negative number.`);
         continue;
       }
@@ -464,34 +524,34 @@ export function parseAndValidateCSV(
     // Cost validation (optional)
     let unitCost = 0;
     if (costCol && row[costCol] !== undefined && row[costCol] !== '') {
-      const c = Number(row[costCol]);
-      if (isNaN(c) || c < 0) {
+      const parsedCost = parseNumericValue(row[costCol]);
+      if (parsedCost === null || parsedCost < 0) {
         errors.push(`Row ${lineNum}: Invalid unit cost value "${row[costCol]}". Cost must be a non-negative number.`);
         continue;
       }
-      unitCost = c;
+      unitCost = parsedCost;
     }
 
     // Discount validation (optional)
     let discountPct = 0;
     if (discCol && row[discCol] !== undefined && row[discCol] !== '') {
-      const d = Number(row[discCol]);
-      if (isNaN(d) || d < 0 || d > 100) {
+      const parsedDiscount = parseNumericValue(row[discCol], true);
+      if (parsedDiscount === null || parsedDiscount < 0 || parsedDiscount > 100) {
         errors.push(`Row ${lineNum}: Invalid discount percentage "${row[discCol]}". Must be between 0 and 100.`);
         continue;
       }
-      discountPct = d;
+      discountPct = parsedDiscount;
     }
 
     // Inventory validation (optional)
     let inv = 0;
     if (invCol && row[invCol] !== undefined && row[invCol] !== '') {
-      const v = Number(row[invCol]);
-      if (isNaN(v) || v < 0) {
+      const parsedInventory = parseNumericValue(row[invCol]);
+      if (parsedInventory === null || parsedInventory < 0) {
         errors.push(`Row ${lineNum}: Invalid inventory value "${row[invCol]}". Inventory must be non-negative.`);
         continue;
       }
-      inv = v;
+      inv = parsedInventory;
     }
 
     // Promotion (optional)
@@ -504,9 +564,12 @@ export function parseAndValidateCSV(
     // Competitor Price (optional); do not substitute the product's own price.
     let compPrice = 0;
     if (compCol && row[compCol] !== undefined && row[compCol] !== '') {
-      const cp = Number(row[compCol]);
-      if (!isNaN(cp) && cp >= 0) {
-        compPrice = cp;
+      const parsedCompetitorPrice = parseNumericValue(row[compCol]);
+      if (parsedCompetitorPrice !== null && parsedCompetitorPrice >= 0) {
+        compPrice = parsedCompetitorPrice;
+      } else {
+        errors.push(`Row ${lineNum}: Invalid competitor price "${row[compCol]}". Expected a non-negative number.`);
+        continue;
       }
     }
 
