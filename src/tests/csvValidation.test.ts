@@ -411,6 +411,28 @@ console.log('\n--- 9. Testing Column Mapping & Header Inferences ---');
   assert(inferred.price === 'RetailPrice', 'RetailPrice mapped to price');
   assert(inferred.unit_cost === 'CostPrice', 'CostPrice mapped to unit_cost');
 
+  // Retail summary files often have date, region, product, total revenue, and units,
+  // but no real unit-price, cost, or inventory columns. Map only what exists.
+  const summaryCSV = `date,region,product,revenue,units
+2025-01-03,North,Studio Lamp,1240,31
+2025-01-07,South,Desk Shelf,860,20
+2025-01-11,West,Studio Lamp,1510,38`;
+  const summaryMapping = inferColumnMapping(['date', 'region', 'product', 'revenue', 'units']);
+  assert(summaryMapping.date === 'date', 'date maps automatically');
+  assert(summaryMapping.category === 'region', 'region maps to category');
+  assert(summaryMapping.product_name === 'product', 'product maps to product name');
+  assert(summaryMapping.product_id === 'product', 'product is used as ID only when no separate ID exists');
+  assert(summaryMapping.revenue === 'revenue', 'total revenue maps separately');
+  assert(summaryMapping.units_sold === 'units', 'units maps to units sold');
+  assert(summaryMapping.price === undefined, 'total revenue must not be mistaken for unit price');
+
+  const summaryResult = parseAndValidateCSV(summaryCSV, undefined, 'Retail Summary');
+  assert(summaryResult.success === true, 'Summary CSV with date and units should be accepted for demand analysis');
+  assert(summaryResult.records![0].category === 'North', 'Region value is preserved as category');
+  assert(summaryResult.records![0].revenue === 1240, 'Total revenue is preserved separately');
+  assert(summaryResult.records![0].price === 0, 'Missing unit price remains unavailable; no price is invented');
+  assert(summaryResult.warnings.some(w => w.includes('not treated as unit price')), 'Warning states revenue is not used as price');
+
   // Custom explicit override mapping
   const customResult = parseAndValidateCSV(
     customHeaderCSV,
