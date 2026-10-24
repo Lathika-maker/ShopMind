@@ -17,6 +17,8 @@ export interface DataRecord {
   inventory_on_hand: number;
   competitor_price: number;
   is_weekend?: boolean;
+  /** Names of optional mapped columns whose value was blank on this row. */
+  data_missing_fields?: string[];
 }
 
 export interface DatasetMetadata {
@@ -35,6 +37,8 @@ export interface DatasetMetadata {
   is_synthetic: boolean;
   /** Fields explicitly present and mapped from the uploaded file. */
   available_fields?: Record<string, boolean>;
+  /** True when the uploaded file contains a mapped column, even if some values are incomplete. */
+  mapped_fields?: Record<string, boolean>;
 }
 
 export interface ValidationIssue {
