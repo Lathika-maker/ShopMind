@@ -279,15 +279,24 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       version: '1.0.0',
       timestamp: new Date().toISOString(),
       dataset_records: activeRecords.length,
-      active_dataset: activeMetadata.name,
-      is_synthetic: activeMetadata.is_synthetic,
+      active_dataset: activeMetadata?.name ?? null,
+      is_synthetic: activeMetadata?.is_synthetic ?? false,
+      has_dataset: Boolean(activeMetadata && activeRecords.length > 0),
     });
   }
 
   if (req.method === 'GET' && pathname === '/api/dataset') {
+    if (!activeMetadata || activeRecords.length === 0) {
+      return sendJson(res, 200, {
+        metadata: null,
+        quality: null,
+        has_dataset: false,
+      });
+    }
     return sendJson(res, 200, {
       metadata: activeMetadata,
       quality: computeQualityReport(activeRecords),
+      has_dataset: true,
     });
   }
 
@@ -321,17 +330,20 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
   }
 
   if (req.method === 'POST' && pathname === '/api/dataset/reset') {
-    const fresh = generateSyntheticDataset();
-    activeMetadata = fresh.metadata;
-    activeRecords = fresh.records;
-    savedScenarios = createDefaultBenchmarkScenarios();
+    activeMetadata = null;
+    activeRecords = [];
+    savedScenarios = [];
     return sendJson(res, 200, {
-      message: 'Reset to deterministic benchmark dataset successfully.',
-      metadata: activeMetadata,
+      message: 'Active dataset and dependent scenarios cleared. Upload a CSV to begin.',
+      metadata: null,
+      has_dataset: false,
     });
   }
 
   if (req.method === 'GET' && pathname === '/api/dataset/export') {
+    if (!activeMetadata || activeRecords.length === 0) {
+      return sendJson(res, 400, { error: 'No active dataset available to export.' });
+    }
     const csv = convertRecordsToCSV(activeRecords);
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/csv');
@@ -341,65 +353,51 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/dataset/upload') {
     parseBody(req).then((body) => {
-      const { name, records, mapping } = body;
-      if (!Array.isArray(records) || records.length === 0) {
-        return sendJson(res, 400, { error: 'No valid records provided.' });
+      const { name, csv_text, mapping } = body;
+      if (typeof csv_text !== 'string' || !csv_text.trim()) {
+        return sendJson(res, 400, {
+          error: 'No CSV text provided. Select a valid .csv file and try again.',
+          details: ['Expected the uploaded file content in the csv_text field.'],
+        });
       }
-      const cleanedRecords: DataRecord[] = records.map((row: any, i: number) => {
-        const dateVal = row[mapping?.date || 'date'] || row['Date'] || '';
-        const prodId = String(row[mapping?.product_id || 'product_id'] || row['Product_ID'] || `P-${(i % 5) + 1}`);
-        const prodName = String(row[mapping?.product_name || 'product_name'] || row['Product_Name'] || prodId);
-        const cat = String(row[mapping?.category || 'category'] || row['Category'] || 'General Merchandise');
-        const units = parseFloat(row[mapping?.units_sold || 'units_sold'] || row['Units_Sold'] || '0');
-        const price = parseFloat(row[mapping?.price || 'price'] || row['Price'] || '0');
-        const cost = parseFloat(row[mapping?.unit_cost || 'unit_cost'] || row['Unit_Cost'] || '0');
-        const disc = parseFloat(row[mapping?.discount_pct || 'discount_pct'] || row['Discount_Pct'] || '0');
-        const promo = Boolean(row[mapping?.promo_active || 'promo_active'] === '1' || row['promo_active'] === true);
-        const inv = parseFloat(row[mapping?.inventory_on_hand || 'inventory_on_hand'] || row['Inventory_On_Hand'] || '100');
-        const comp = parseFloat(row[mapping?.competitor_price || 'competitor_price'] || row['Competitor_Price'] || String(price));
-        return {
-          id: `UPL-${i + 1}`,
-          date: dateVal,
-          product_id: prodId,
-          product_name: prodName,
-          category: cat,
-          units_sold: isNaN(units) ? 0 : units,
-          price: isNaN(price) ? 0 : price,
-          unit_cost: isNaN(cost) ? 0 : cost,
-          discount_pct: isNaN(disc) ? 0 : disc,
-          promo_active: promo,
-          inventory_on_hand: isNaN(inv) ? 0 : inv,
-          competitor_price: isNaN(comp) ? price : comp,
-        };
-      });
-      cleanedRecords.sort((a, b) => a.date.localeCompare(b.date));
-      const dates = cleanedRecords.map(r => r.date).filter(Boolean);
-      const productMap = new Map<string, { id: string; name: string; category?: string }>();
-      cleanedRecords.forEach(r => {
-        if (!productMap.has(r.product_id)) {
-          productMap.set(r.product_id, { id: r.product_id, name: r.product_name, category: r.category });
-        }
-      });
-      const product_items = Array.from(productMap.values());
-      activeMetadata = {
-        id: `ds_user_${Date.now()}`,
-        name: name || 'Uploaded Retail Dataset',
-        source: 'uploaded_csv',
-        created_at: new Date().toISOString(),
-        row_count: cleanedRecords.length,
-        date_range: { start: dates[0] || '', end: dates[dates.length - 1] || '' },
-        products: product_items.map(p => p.name),
-        product_items,
-        categories: Array.from(new Set(cleanedRecords.map(r => r.category))),
-        is_synthetic: false,
-      };
-      activeRecords = cleanedRecords;
-      savedScenarios = generateScenariosForDataset(cleanedRecords, product_items);
+
+      const result = parseAndValidateCSV(
+        csv_text,
+        mapping && typeof mapping === 'object' ? mapping as ColumnMappingConfig : undefined,
+        typeof name === 'string' && name.trim() ? name.trim() : 'Uploaded Retail Dataset'
+      );
+
+      if (!result.success || !result.records || !result.metadata) {
+        return sendJson(res, 422, {
+          error: 'CSV validation failed. Correct the reported issues and upload again.',
+          details: result.errors,
+          warnings: result.warnings,
+          detectedMapping: result.detectedMapping,
+          rawHeaders: result.rawHeaders,
+        });
+      }
+
+      // Activate the dataset only after full validation. Do not create synthetic
+      // benchmark scenarios or preserve scenarios from a different dataset.
+      activeRecords = result.records;
+      activeMetadata = result.metadata;
+      savedScenarios = [];
+
       return sendJson(res, 200, {
-        message: 'Dataset uploaded and processed successfully. Scenarios and metrics refreshed.',
+        message: 'CSV uploaded, validated, and ingested successfully.',
         metadata: activeMetadata,
         quality: computeQualityReport(activeRecords),
+        warnings: result.warnings,
+        available_fields: {
+          price: activeRecords.some(record => record.price > 0),
+          revenue: activeRecords.some(record => typeof record.revenue === 'number'),
+          unit_cost: Boolean(mapping?.unit_cost),
+          inventory_on_hand: Boolean(mapping?.inventory_on_hand),
+          discount_pct: Boolean(mapping?.discount_pct),
+        },
       });
+    }).catch((error: any) => {
+      return sendJson(res, 500, { error: `Dataset ingestion failed: ${error?.message || 'Unknown error'}` });
     });
     return;
   }
