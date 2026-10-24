@@ -94,7 +94,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </span>
           <span className="text-slate-600">·</span>
           <span className="text-[11px] text-emerald-400 font-medium">
-            {firebaseConnected ? 'Firestore Connected' : 'Local'}
+            {firebaseConnected ? 'Cloud Reachable · Session Local' : 'Session Local'}
           </span>
         </div>
 
