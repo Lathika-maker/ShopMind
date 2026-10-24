@@ -605,10 +605,10 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
           <div>
             <h3 className="text-sm font-semibold text-white">
-              Persisted Commercial Scenarios ({scenarios.length})
+              Saved Commercial Scenarios — Current Session ({scenarios.length})
             </h3>
             <p className="text-xs text-slate-400">
-              Saved scenarios can be re-evaluated, duplicated, and exported for executive reviews.
+              Scenarios can be reviewed and duplicated during this session. A new CSV clears them so results cannot be mixed across datasets.
             </p>
           </div>
         </div>
