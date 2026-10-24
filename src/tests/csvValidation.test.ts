@@ -19,6 +19,7 @@ import {
   parseAndValidateCSV,
   inferColumnMapping,
   splitCSVLine,
+  parseCSVText,
   parseAndNormalizeDate,
 } from '../services/csvParser.ts';
 import {
@@ -487,6 +488,34 @@ console.log('\n--- 10. Testing Feature Availability Under Missing Optional Colum
   console.log('  ✓ Missing optional columns degrade features gracefully without crashing or fabricating numbers.');
 }
 
+// =========================================================================
+// TEST SUITE 11: Quoted CSV Records and Optional-Field Completeness
+// =========================================================================
+console.log('\n--- 11. Testing quoted values and incomplete optional fields ---');
+
+{
+  const records = parseCSVText(
+    'date,product,notes,units\r\n' +
+    '2025-01-01,SKU-1,"Lamp, brass","3"\r\n' +
+    '2025-01-02,SKU-1,"two line note\nwith continuation","4"\r\n'
+  );
+  assert(records.length === 3, 'Quoted multiline cells stay inside one record');
+  assert(records[1][2] === 'Lamp, brass', 'Comma inside a quoted cell does not create a new column');
+  assert(records[2][2] === 'two line note\nwith continuation', 'Newline inside a quoted cell is preserved');
+
+  const partialPriceCSV = `date,product_id,units_sold,price,unit_cost,inventory_on_hand
+2025-01-01,SKU-1,10,10.00,4.00,20
+2025-01-02,SKU-1,11,,4.00,20
+2025-01-03,SKU-1,9,12.00,4.00,20`;
+  const parsed = parseAndValidateCSV(partialPriceCSV, undefined, 'Partial Price Dataset');
+  assert(parsed.success === true, 'A blank optional value does not block demand-only ingestion');
+  assert(parsed.metadata?.available_fields?.price === false, 'Incomplete price column is marked unavailable for the whole dataset');
+  assert(parsed.metadata?.available_fields?.unit_cost === true, 'Complete unit-cost column remains available');
+  assert(parsed.warnings.some(w => w.includes('blank cells')), 'Blank optional values produce a clear warning');
+
+  console.log('  ✓ Quoted records parse correctly and partial optional fields are not treated as reliable zeros.');
+}
+
 console.log('\n=============================================================');
-console.log('🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (10/10 TEST SUITES)');
+console.log('🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (11/11 TEST SUITES)');
 console.log('=============================================================\n');
