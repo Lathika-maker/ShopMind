@@ -89,7 +89,7 @@ export function simulateScenario(
   input: ScenarioInput,
   demand: number,
   product_name: string,
-  demand_source: 'fitted_model' | 'elasticity_model' | 'user_assumed' = 'fitted_model',
+  demand_source: 'fitted_model' | 'elasticity_model' | 'user_assumed' | 'historical_average' = 'fitted_model',
   constraints?: BusinessConstraints
 ): ScenarioSimulationResult {
   const effective_price = input.selling_price * (1 - (input.discount_pct || 0) / 100);
