@@ -61,11 +61,6 @@ export function splitCSVLine(line: string): string[] {
 }
 
 /**
- * Parse a complete CSV document, respecting escaped quotes, commas, CRLF/LF,
- * and line breaks embedded inside quoted fields. Blank physical lines are ignored.
- * Throws on an unterminated quoted field so malformed uploads are not misread.
- */
-/**
  * Detect common CSV delimiters using the first logical header row.
  * Counts only separators outside quoted header text.
  */
