@@ -115,7 +115,10 @@ function estimateScenarioDemand(
   };
 }
 
-function computeQualityReport(records: DataRecord[]): DataQualityReport {
+function computeQualityReport(
+  records: DataRecord[],
+  availableFields?: Record<string, boolean>
+): DataQualityReport {
   const issues: ValidationIssue[] = [];
   const missingCols: Record<string, number> = {};
   const negativeCols: Record<string, number> = {};
@@ -124,50 +127,69 @@ function computeQualityReport(records: DataRecord[]): DataQualityReport {
 
   const numericStats: Record<string, number[]> = {
     units_sold: [],
+    revenue: [],
     price: [],
     unit_cost: [],
     discount_pct: [],
     inventory_on_hand: [],
   };
 
-  records.forEach((r) => {
-    const key = `${r.product_id}_${r.date}`;
+  records.forEach(record => {
+    const key = String(record.product_id) + '_' + String(record.date);
     if (seenKeys.has(key)) duplicateCount++;
     else seenKeys.add(key);
 
-    if (!r.date) missingCols['date'] = (missingCols['date'] || 0) + 1;
-    if (!r.product_id) missingCols['product_id'] = (missingCols['product_id'] || 0) + 1;
-    if (r.units_sold === undefined || isNaN(r.units_sold)) {
-      missingCols['units_sold'] = (missingCols['units_sold'] || 0) + 1;
+    if (!record.date) missingCols.date = (missingCols.date || 0) + 1;
+    if (!record.product_id) missingCols.product_id = (missingCols.product_id || 0) + 1;
+
+    if (!Number.isFinite(record.units_sold)) {
+      missingCols.units_sold = (missingCols.units_sold || 0) + 1;
     } else {
-      numericStats['units_sold'].push(r.units_sold);
-      if (r.units_sold < 0) negativeCols['units_sold'] = (negativeCols['units_sold'] || 0) + 1;
+      numericStats.units_sold.push(record.units_sold);
+      if (record.units_sold < 0) negativeCols.units_sold = (negativeCols.units_sold || 0) + 1;
     }
 
-    if (r.price === undefined || isNaN(r.price)) {
-      missingCols['price'] = (missingCols['price'] || 0) + 1;
-    } else {
-      numericStats['price'].push(r.price);
-      if (r.price < 0) negativeCols['price'] = (negativeCols['price'] || 0) + 1;
+    if (availableFields?.revenue !== false && typeof record.revenue === 'number' && Number.isFinite(record.revenue)) {
+      numericStats.revenue.push(record.revenue);
+      if (record.revenue < 0) negativeCols.revenue = (negativeCols.revenue || 0) + 1;
     }
 
-    if (r.unit_cost === undefined || isNaN(r.unit_cost)) {
-      missingCols['unit_cost'] = (missingCols['unit_cost'] || 0) + 1;
-    } else {
-      numericStats['unit_cost'].push(r.unit_cost);
-      if (r.unit_cost < 0) negativeCols['unit_cost'] = (negativeCols['unit_cost'] || 0) + 1;
-    }
-
-    if (r.discount_pct !== undefined && !isNaN(r.discount_pct)) {
-      numericStats['discount_pct'].push(r.discount_pct);
-      if (r.discount_pct < 0 || r.discount_pct > 100) {
-        negativeCols['discount_pct'] = (negativeCols['discount_pct'] || 0) + 1;
+    if (availableFields?.price !== false) {
+      if (!Number.isFinite(record.price)) {
+        missingCols.price = (missingCols.price || 0) + 1;
+      } else {
+        numericStats.price.push(record.price);
+        if (record.price < 0) negativeCols.price = (negativeCols.price || 0) + 1;
       }
     }
 
-    if (r.inventory_on_hand !== undefined && !isNaN(r.inventory_on_hand)) {
-      numericStats['inventory_on_hand'].push(r.inventory_on_hand);
-      if (r.inventory_on_hand < 0) negativeCols['inventory_on_hand'] = (negativeCols['inventory_on_hand'] || 0) + 1;
+    if (availableFields?.unit_cost !== false) {
+      if (!Number.isFinite(record.unit_cost)) {
+        missingCols.unit_cost = (missingCols.unit_cost || 0) + 1;
+      } else {
+        numericStats.unit_cost.push(record.unit_cost);
+        if (record.unit_cost < 0) negativeCols.unit_cost = (negativeCols.unit_cost || 0) + 1;
+      }
+    }
+
+    if (availableFields?.discount_pct !== false) {
+      if (!Number.isFinite(record.discount_pct)) {
+        missingCols.discount_pct = (missingCols.discount_pct || 0) + 1;
+      } else {
+        numericStats.discount_pct.push(record.discount_pct);
+        if (record.discount_pct < 0 || record.discount_pct > 100) {
+          negativeCols.discount_pct = (negativeCols.discount_pct || 0) + 1;
+        }
+      }
+    }
+
+    if (availableFields?.inventory_on_hand !== false) {
+      if (!Number.isFinite(record.inventory_on_hand)) {
+        missingCols.inventory_on_hand = (missingCols.inventory_on_hand || 0) + 1;
+      } else {
+        numericStats.inventory_on_hand.push(record.inventory_on_hand);
+        if (record.inventory_on_hand < 0) negativeCols.inventory_on_hand = (negativeCols.inventory_on_hand || 0) + 1;
+      }
     }
   });
 
@@ -177,45 +199,65 @@ function computeQualityReport(records: DataRecord[]): DataQualityReport {
       column: 'product_id + date',
       severity: 'warning',
       count: duplicateCount,
-      description: `Detected ${duplicateCount} duplicate records sharing identical product ID and date.`,
+      description: 'Detected ' + duplicateCount + ' duplicate records sharing identical product ID and date.',
     });
   }
 
-  for (const [col, count] of Object.entries(missingCols)) {
+  for (const [column, count] of Object.entries(missingCols)) {
     if (count > 0) {
       issues.push({
         type: 'missing_value',
-        column: col,
+        column,
         severity: 'error',
         count,
-        description: `Column '${col}' contains ${count} null or missing observations.`,
+        description: "Column '" + column + "' contains " + count + ' null or missing observations.',
       });
     }
   }
 
-  for (const [col, count] of Object.entries(negativeCols)) {
+  for (const [column, count] of Object.entries(negativeCols)) {
     if (count > 0) {
       issues.push({
         type: 'negative_value',
-        column: col,
+        column,
         severity: 'error',
         count,
-        description: `Column '${col}' contains ${count} invalid negative or out-of-bounds values.`,
+        description: "Column '" + column + "' contains " + count + ' invalid negative or out-of-bounds values.',
       });
     }
   }
 
-  const summary_stats = Object.entries(numericStats).map(([col, values]) => {
-    if (values.length === 0) return { column: col, min: 0, max: 0, mean: 0, median: 0, std: 0 };
+  const optionalFields: Array<[string, string]> = [
+    ['price', 'unit-price'],
+    ['revenue', 'total revenue'],
+    ['unit_cost', 'unit cost'],
+    ['discount_pct', 'discount'],
+    ['inventory_on_hand', 'inventory'],
+    ['promo_active', 'promotion indicator'],
+    ['competitor_price', 'competitor-price'],
+  ];
+  optionalFields.forEach(([field, label]) => {
+    if (availableFields?.[field] === false) {
+      issues.push({
+        type: 'missing_value',
+        column: field,
+        severity: 'warning',
+        count: records.length,
+        description: 'No ' + label + ' column was mapped. Analyses requiring this field remain unavailable.',
+      });
+    }
+  });
+
+  const summary_stats = Object.entries(numericStats).map(([column, values]) => {
+    if (values.length === 0) return { column, min: 0, max: 0, mean: 0, median: 0, std: 0 };
     const sorted = [...values].sort((a, b) => a - b);
     const min = sorted[0];
     const max = sorted[sorted.length - 1];
-    const sum = sorted.reduce((a, b) => a + b, 0);
-    const mean = sum / sorted.length;
+    const mean = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
     const median = sorted[Math.floor(sorted.length / 2)];
-    const variance = sorted.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / sorted.length;
+    const variance = sorted.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / sorted.length;
     return {
-      column: col,
+      column,
       min: Math.round(min * 100) / 100,
       max: Math.round(max * 100) / 100,
       mean: Math.round(mean * 100) / 100,
@@ -224,10 +266,21 @@ function computeQualityReport(records: DataRecord[]): DataQualityReport {
     };
   });
 
-  const totalPossibleChecks = records.length * 6;
-  const totalErrors = Object.values(missingCols).reduce((a, b) => a + b, 0) +
-    Object.values(negativeCols).reduce((a, b) => a + b, 0) + duplicateCount;
-  const completeness_score = Math.max(0, Math.min(100, Math.round(((totalPossibleChecks - totalErrors) / totalPossibleChecks) * 100)));
+  const checkedFields = ['date', 'product_id', 'units_sold', 'revenue', 'price', 'unit_cost', 'discount_pct', 'inventory_on_hand']
+    .filter(field => availableFields?.[field] !== false);
+  const totalPossibleChecks = records.length * checkedFields.length;
+  const totalErrors = Object.values(missingCols).reduce((sum, count) => sum + count, 0) +
+    Object.values(negativeCols).reduce((sum, count) => sum + count, 0) + duplicateCount;
+  const completeness_score = totalPossibleChecks > 0
+    ? Math.max(0, Math.min(100, Math.round(((totalPossibleChecks - totalErrors) / totalPossibleChecks) * 100)))
+    : 0;
+
+  const dates = records.map(record => record.date).filter(Boolean).sort();
+  const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
+  const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
+  const date_range_days = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+    ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
+    : 0;
 
   return {
     total_records: records.length,
@@ -235,7 +288,7 @@ function computeQualityReport(records: DataRecord[]): DataQualityReport {
     duplicate_count: duplicateCount,
     missing_values_by_column: missingCols,
     negative_values_by_column: negativeCols,
-    date_range_days: 365,
+    date_range_days,
     completeness_score,
     issues,
     summary_stats,
@@ -295,7 +348,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     }
     return sendJson(res, 200, {
       metadata: activeMetadata,
-      quality: computeQualityReport(activeRecords),
+      quality: computeQualityReport(activeRecords, activeMetadata?.available_fields),
       has_dataset: true,
     });
   }
@@ -400,7 +453,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       return sendJson(res, 200, {
         message: 'CSV uploaded, validated, and ingested successfully.',
         metadata: activeMetadata,
-        quality: computeQualityReport(activeRecords),
+        quality: computeQualityReport(activeRecords, activeMetadata?.available_fields),
         warnings: result.warnings,
         available_fields: {
           price: activeRecords.some(record => record.price > 0),
