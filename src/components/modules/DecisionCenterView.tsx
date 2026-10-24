@@ -32,6 +32,23 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
   onUpdateConstraints,
   onNavigate,
 }) => {
+  // Configurable weights
+  const [profitWeight, setProfitWeight] = useState<number>(constraints.weights?.profit_weight || 0.5);
+  const [stockoutWeight, setStockoutWeight] = useState<number>(constraints.weights?.stockout_weight || 0.3);
+  const [leftoverWeight, setLeftoverWeight] = useState<number>(constraints.weights?.leftover_weight || 0.2);
+
+  // Constraint thresholds
+  const [minMargin, setMinMargin] = useState<number>(constraints.min_profit_margin_pct);
+  const [maxStockout, setMaxStockout] = useState<number>(constraints.max_stock_out_risk_pct);
+
+  React.useEffect(() => {
+    setProfitWeight(constraints.weights?.profit_weight ?? 0.5);
+    setStockoutWeight(constraints.weights?.stockout_weight ?? 0.3);
+    setLeftoverWeight(constraints.weights?.leftover_weight ?? 0.2);
+    setMinMargin(constraints.min_profit_margin_pct);
+    setMaxStockout(constraints.max_stock_out_risk_pct);
+  }, [constraints]);
+
   if (scenarios.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 max-w-xl mx-auto text-center">
@@ -56,15 +73,6 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
       </div>
     );
   }
-
-  // Configurable weights
-  const [profitWeight, setProfitWeight] = useState<number>(constraints.weights?.profit_weight || 0.5);
-  const [stockoutWeight, setStockoutWeight] = useState<number>(constraints.weights?.stockout_weight || 0.3);
-  const [leftoverWeight, setLeftoverWeight] = useState<number>(constraints.weights?.leftover_weight || 0.2);
-
-  // Constraint thresholds
-  const [minMargin, setMinMargin] = useState<number>(constraints.min_profit_margin_pct);
-  const [maxStockout, setMaxStockout] = useState<number>(constraints.max_stock_out_risk_pct);
 
   const handleApplyConstraints = () => {
     onUpdateConstraints({
