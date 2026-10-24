@@ -9,6 +9,7 @@ export interface DataRecord {
   product_name: string;
   category: string;
   units_sold: number;
+  revenue?: number; // Total sales value if supplied; distinct from unit price.
   price: number;
   unit_cost: number;
   discount_pct: number;
