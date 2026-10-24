@@ -195,7 +195,7 @@ export interface ScenarioSimulationResult {
   advertising_cost: number;
   inventory: number;
   demand: number;
-  demand_source: 'fitted_model' | 'elasticity_model' | 'user_assumed';
+  demand_source: 'fitted_model' | 'elasticity_model' | 'user_assumed' | 'historical_average';
   fulfilled: number;
   unmet: number;
   leftover: number;
