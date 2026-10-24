@@ -667,24 +667,29 @@ app.post('/api/scenarios/duplicate/:id', (req: Request, res: Response) => {
 app.post('/api/scenarios/simulate', (req: Request, res: Response) => {
   try {
     const input: ScenarioInput = req.body;
-    if (input.selling_price === undefined || input.selling_price <= 0) {
+    if (!activeMetadata || activeRecords.length === 0) {
+      return res.status(400).json({ error: 'No active dataset. Upload a CSV before simulating a scenario.' });
+    }
+    if (!Number.isFinite(input.selling_price) || input.selling_price <= 0) {
       return res.status(400).json({ error: 'Explicit positive selling price is required.' });
     }
-    if (input.unit_cost === undefined || input.unit_cost < 0) {
+    if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) {
       return res.status(400).json({ error: 'Explicit non-negative unit cost is required.' });
     }
+    if (!Number.isFinite(input.inventory) || input.inventory < 0) {
+      return res.status(400).json({ error: 'Explicit non-negative inventory is required.' });
+    }
 
-    const prod = getProductBaseline(input.product_id);
-    const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
-    const priceRatio = effectivePrice / (prod.basePrice || input.selling_price || 1);
-    const promoLift = input.is_promo ? 1.3 : 1.0;
-    const estimatedDemand = Math.max(1, Math.round(prod.baseDemand * Math.pow(priceRatio, prod.elasticity) * promoLift));
-
+    const product = getProductBaseline(input.product_id);
+    if (!product) {
+      return res.status(404).json({ error: 'The selected product does not exist in the active uploaded dataset.' });
+    }
+    const estimate = estimateScenarioDemand(product, input);
     const result = simulateScenario(
       input,
-      estimatedDemand,
-      prod.name,
-      'fitted_model',
+      estimate.demand,
+      product.name,
+      estimate.source,
       activeConstraints
     );
     res.json(result);
@@ -697,17 +702,25 @@ app.post('/api/scenarios/simulate', (req: Request, res: Response) => {
 app.post('/api/scenarios/stress-test', (req: Request, res: Response) => {
   try {
     const input: ScenarioInput = req.body;
-    const prod = getProductBaseline(input.product_id);
-    const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
-    const priceRatio = effectivePrice / (prod.basePrice || input.selling_price || 1);
-    const promoLift = input.is_promo ? 1.3 : 1.0;
-    const estimatedDemand = Math.max(1, Math.round(prod.baseDemand * Math.pow(priceRatio, prod.elasticity) * promoLift));
+    if (!activeMetadata || activeRecords.length === 0) {
+      return res.status(400).json({ error: 'No active dataset. Upload a CSV before stress testing.' });
+    }
+    if (!Number.isFinite(input.selling_price) || input.selling_price <= 0 ||
+        !Number.isFinite(input.unit_cost) || input.unit_cost < 0 ||
+        !Number.isFinite(input.inventory) || input.inventory < 0) {
+      return res.status(400).json({ error: 'Provide a positive selling price, non-negative unit cost, and non-negative inventory.' });
+    }
 
+    const product = getProductBaseline(input.product_id);
+    if (!product) {
+      return res.status(404).json({ error: 'The selected product does not exist in the active uploaded dataset.' });
+    }
+    const estimate = estimateScenarioDemand(product, input);
     const baseline = simulateScenario(
       input,
-      estimatedDemand,
-      prod.name,
-      'fitted_model',
+      estimate.demand,
+      product.name,
+      estimate.source,
       activeConstraints
     );
 
