@@ -7,10 +7,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import {
-  generateSyntheticDataset,
-  convertRecordsToCSV,
-} from './src/data/syntheticDemo.ts';
+import { convertRecordsToCSV } from './src/data/syntheticDemo.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -280,6 +277,63 @@ app.get('/api/dataset/trend', (_req: Request, res: Response) => {
   res.json(trend);
 });
 
+app.get('/api/dataset/product-summary', (req: Request, res: Response) => {
+  if (!activeMetadata || activeRecords.length === 0) {
+    return res.status(400).json({ error: 'No active dataset. Upload a CSV first.' });
+  }
+  const productId = typeof req.query.product_id === 'string' ? req.query.product_id : '';
+  const records = activeRecords.filter(record => record.product_id === productId);
+  if (!productId || records.length === 0) {
+    return res.status(404).json({ error: 'Select a product from the active uploaded dataset.' });
+  }
+
+  const average = (field: 'price' | 'unit_cost' | 'inventory_on_hand' | 'discount_pct' | 'competitor_price' | 'revenue') => {
+    if (activeMetadata?.available_fields?.[field] !== true) return null;
+    const values = records.map(record => (record as any)[field]).filter((value: unknown): value is number =>
+      typeof value === 'number' && Number.isFinite(value) && (field !== 'price' || value > 0)
+    );
+    if (values.length === 0) return null;
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 100) / 100;
+  };
+
+  const dates = records.map(record => record.date).filter(Boolean).sort();
+  const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
+  const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
+  const spanDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+    ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
+    : Math.max(1, new Set(dates).size);
+  const totalUnits = records.reduce((sum, record) => sum + record.units_sold, 0);
+  const totalRevenue = records.reduce((sum, record) => sum + (typeof record.revenue === 'number' ? record.revenue : 0), 0);
+  const hasTotalRevenue = activeMetadata.available_fields?.revenue === true;
+  const baseline = getProductBaseline(productId);
+
+  return res.json({
+    product_id: productId,
+    product_name: records[0].product_name || productId,
+    row_count: records.length,
+    date_start: dates[0] || null,
+    date_end: dates[dates.length - 1] || null,
+    observed_calendar_days: spanDays,
+    total_units: Math.round(totalUnits * 100) / 100,
+    average_units_per_record: Math.round(totalUnits / records.length * 100) / 100,
+    estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
+    average_unit_price: average('price'),
+    derived_unit_price_from_revenue: activeMetadata.available_fields?.price === true || !hasTotalRevenue || totalUnits <= 0
+      ? null
+      : Math.round((totalRevenue / totalUnits) * 100) / 100,
+    derived_unit_price_note: activeMetadata.available_fields?.price === true || !hasTotalRevenue || totalUnits <= 0
+      ? null
+      : 'Calculated as total recorded revenue divided by total units sold; used only as a scenario price seed, never to fit price elasticity.',
+    average_unit_cost: average('unit_cost'),
+    average_inventory_on_hand: average('inventory_on_hand'),
+    average_discount_pct: average('discount_pct'),
+    average_competitor_price: average('competitor_price'),
+    average_total_revenue: average('revenue'),
+    demand_estimation_method: baseline?.elasticity === null ? 'historical_average' : 'empirical_price_elasticity',
+    available_fields: activeMetadata.available_fields || {},
+  });
+});
+
 app.get('/api/dataset/records', (req: Request, res: Response) => {
   if (activeRecords.length === 0) {
     return res.json({
@@ -323,26 +377,13 @@ app.get('/api/dataset/records', (req: Request, res: Response) => {
   });
 });
 
-// 4. Reset or Clear Dataset (Never loads synthetic by default into user session)
-app.post('/api/dataset/reset', (req: Request, res: Response) => {
-  if (req.query.mode === 'benchmark_test_only') {
-    const fixture = generateSyntheticDataset();
-    activeMetadata = fixture.metadata;
-    activeRecords = fixture.records;
-    savedScenarios = [];
-    return res.json({
-      message: 'Loaded isolated benchmark fixture for automated test execution.',
-      metadata: activeMetadata,
-      has_dataset: true,
-    });
-  }
-
-  // Clear live runtime dataset to empty state
+// 4. Reset or clear the active dataset. Runtime never switches to demo data.
+app.post('/api/dataset/reset', (_req: Request, res: Response) => {
   activeMetadata = null;
   activeRecords = [];
   savedScenarios = [];
   res.json({
-    message: 'Active dataset and dependent models cleared successfully.',
+    message: 'Active dataset and dependent scenarios cleared. Upload a CSV to begin.',
     metadata: null,
     has_dataset: false,
   });
