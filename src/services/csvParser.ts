@@ -327,7 +327,7 @@ export function parseAndValidateCSV(
   // Revenue is total sales value, not a unit price. Keep it separate so it cannot
   // accidentally create a mechanically derived price/quantity relationship.
   if (!priceCol) {
-    warnings.push('No unit-price column was detected or mapped. Price sensitivity is unavailable. A total revenue column is not treated as unit price.');
+    warnings.push('Price column was not detected or mapped; price sensitivity is unavailable. A total revenue column is not treated as unit price.');
   }
   if (!revenueCol) {
     // Revenue is optional; it is not needed for demand-only analysis.
