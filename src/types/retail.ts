@@ -33,6 +33,8 @@ export interface DatasetMetadata {
   product_items?: { id: string; name: string; category?: string }[];
   categories: string[];
   is_synthetic: boolean;
+  /** Fields explicitly present and mapped from the uploaded file. */
+  available_fields?: Record<string, boolean>;
 }
 
 export interface ValidationIssue {
