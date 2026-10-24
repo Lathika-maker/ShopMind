@@ -576,13 +576,17 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     const highRiskScen = savedScenarios.find(s => !s.is_feasible || s.stock_out_risk_percent > activeConstraints.max_stock_out_risk_pct);
     const topScen = savedScenarios.find(s => s.is_feasible) || savedScenarios[0];
 
-    const insights: InsightItem[] = [
-      {
+    const insights: InsightItem[] = [];
+
+    // Only report price elasticity when genuine unit-price values and a sufficient
+    // sample are available. Revenue or zero-filled missing prices cannot support it.
+    if (primaryRecords.some(record => record.price > 0) && elast.sufficiency !== 'insufficient') {
+      insights.push({
         id: 'ins_price_elasticity',
         category: 'price_sensitivity',
         title: `Empirical Price Elasticity: ${primaryProdName}`,
         observed: `Estimated empirical elasticity coefficient of ${elast.elasticity.toFixed(2)} (95% CI: [${elast.confidence_interval_95[0].toFixed(2)}, ${elast.confidence_interval_95[1].toFixed(2)}], p = ${elast.p_value.toFixed(4)}).`,
-        supporting_data: `Evaluated on ${elast.sample_size} active observations (R² = ${(elast.r_squared || 0).toFixed(3)}). Average price: $${meanPrice.toFixed(2)}, average volume: ${meanUnits.toFixed(1)} units.`,
+        supporting_data: `Evaluated on ${elast.sample_size} active observations (R² = ${(elast.r_squared || 0).toFixed(3)}). Average price: ${meanPrice.toFixed(2)}, average volume: ${meanUnits.toFixed(1)} units.`,
         why_it_matters: elast.elasticity < -1
           ? `Demand is price-elastic (coefficient ${elast.elasticity.toFixed(2)} < -1.0). Strategic promotional markdown stimulates more than proportional volume expansion.`
           : `Demand is price-inelastic (coefficient ${elast.elasticity.toFixed(2)} >= -1.0). Protect price floors to preserve gross margin rather than discounting.`,
@@ -591,8 +595,8 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
           : 'Hold prestige pricing and avoid broad-scale markdowns that dilute margin without proportional volume lift.',
         uncertainty_limitations: 'Calculated via Log-Log Ordinary Least Squares with promotion controls. Macro inflation, competitor matching, and local seasonality can shift demand curves.',
         severity: Math.abs(elast.elasticity) > 1.5 ? 'high' : 'medium',
-      },
-    ];
+      });
+    }
 
     if (regimesResult && highSummary) {
       insights.push({
