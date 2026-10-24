@@ -219,6 +219,7 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                 <th className="py-3 px-4">Product Name</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4 text-right">Units Sold</th>
+                <th className="py-3 px-4 text-right">Revenue</th>
                 <th className="py-3 px-4 text-right">Selling Price</th>
                 <th className="py-3 px-4 text-right">Unit Cost</th>
                 <th className="py-3 px-4 text-right">Discount</th>
@@ -230,7 +231,7 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
             <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300 text-xs tabular-nums">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-500 font-sans">
+                  <td colSpan={12} className="py-8 text-center text-slate-500 font-sans">
                     Loading records from active dataset...
                   </td>
                 </tr>
@@ -248,24 +249,37 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                     <td className="py-2.5 px-4 font-sans text-white font-medium whitespace-nowrap">{r.product_name}</td>
                     <td className="py-2.5 px-4 font-sans text-slate-400 whitespace-nowrap">{r.category}</td>
                     <td className="py-2.5 px-4 text-right font-bold text-white">{r.units_sold}</td>
-                    <td className="py-2.5 px-4 text-right">${r.price.toFixed(2)}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-400">${r.unit_cost.toFixed(2)}</td>
+                    <td className="py-2.5 px-4 text-right text-slate-200">
+                      {typeof r.revenue === 'number' ? `${r.revenue.toFixed(2)}` : <span className="text-slate-500">N/A</span>}
+                    </td>
                     <td className="py-2.5 px-4 text-right">
-                      {r.discount_pct > 0 ? (
+                      {metadata.available_fields?.price === false ? <span className="text-slate-500">N/A</span> : `${r.price.toFixed(2)}`}
+                    </td>
+                    <td className="py-2.5 px-4 text-right text-slate-400">
+                      {metadata.available_fields?.unit_cost === false ? <span className="text-slate-500">N/A</span> : `${r.unit_cost.toFixed(2)}`}
+                    </td>
+                    <td className="py-2.5 px-4 text-right">
+                      {metadata.available_fields?.discount_pct === false ? <span className="text-slate-500">N/A</span> : r.discount_pct > 0 ? (
                         <span className="text-amber-400">-{r.discount_pct}%</span>
                       ) : (
                         <span className="text-slate-500">0%</span>
                       )}
                     </td>
                     <td className="py-2.5 px-4 text-center">
-                      {r.promo_active ? (
+                      {metadata.available_fields?.promo_active === false ? (
+                        <span className="text-slate-500">N/A</span>
+                      ) : r.promo_active ? (
                         <span className="text-emerald-400 font-sans font-medium text-[11px]">Active</span>
                       ) : (
                         <span className="text-slate-600 font-sans text-[11px]">No</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-4 text-right text-slate-200">{r.inventory_on_hand}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-400">${r.competitor_price.toFixed(2)}</td>
+                    <td className="py-2.5 px-4 text-right text-slate-200">
+                      {metadata.available_fields?.inventory_on_hand === false ? <span className="text-slate-500">N/A</span> : r.inventory_on_hand}
+                    </td>
+                    <td className="py-2.5 px-4 text-right text-slate-400">
+                      {metadata.available_fields?.competitor_price === false ? <span className="text-slate-500">N/A</span> : `${r.competitor_price.toFixed(2)}`}
+                    </td>
                   </tr>
                 ))
               )}
