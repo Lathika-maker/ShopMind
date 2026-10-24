@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Test connection endpoint
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Scenarios collection
+    match /scenarios/{scenarioId} {
+      allow get: if isValidId(scenarioId);
+      allow list: if true;
+      allow create: if isValidId(scenarioId)
+        && incoming().scenario_id is string
+        && incoming().name is string && incoming().name.size() <= 128
+        && incoming().product_id is string && incoming().product_id.size() <= 64
+        && incoming().selling_price is number
+        && incoming().unit_cost is number
+        && incoming().inventory is number;
+      allow update: if isValidId(scenarioId)
+        && incoming().scenario_id == existing().scenario_id
+        && incoming().name is string && incoming().name.size() <= 128
+        && incoming().selling_price is number
+        && incoming().unit_cost is number
+        && incoming().inventory is number;
+      allow delete: if isValidId(scenarioId);
+    }
+
+    // Datasets collection
+    match /datasets/{datasetId} {
+      allow get: if isValidId(datasetId);
+      allow list: if true;
+      allow create: if isValidId(datasetId)
+        && incoming().id is string
+        && incoming().name is string && incoming().name.size() <= 128
+        && incoming().source is string
+        && incoming().row_count is number;
+      allow update: if isValidId(datasetId)
+        && incoming().id == existing().id;
+      allow delete: if isValidId(datasetId);
+    }
+  }
+}

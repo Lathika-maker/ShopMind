@@ -1,0 +1,6 @@
+{
+  "name": "SHOPMIND — Full-Stack Retail Intelligence Platform",
+  "description": "Production-grade retail intelligence platform for data validation, demand forecasting, regime detection, price sensitivity analysis, and scenario simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "Scenario": {
+      "title": "Scenario",
+      "description": "Commercial retail decision scenario with simulated financials and inventory outcomes",
+      "type": "object",
+      "properties": {
+        "scenario_id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "product_id": { "type": "string", "maxLength": 64 },
+        "product_name": { "type": "string", "maxLength": 128 },
+        "selling_price": { "type": "number" },
+        "unit_cost": { "type": "number" },
+        "discount_pct": { "type": "number" },
+        "effective_price": { "type": "number" },
+        "promotion_cost": { "type": "number" },
+        "advertising_cost": { "type": "number" },
+        "inventory": { "type": "number" },
+        "demand": { "type": "number" },
+        "demand_source": { "type": "string", "maxLength": 64 },
+        "fulfilled": { "type": "number" },
+        "unmet": { "type": "number" },
+        "leftover": { "type": "number" },
+        "revenue": { "type": "number" },
+        "estimated_profit": { "type": "number" },
+        "profit_margin_pct": { "type": "number" },
+        "stock_out_risk_percent": { "type": "number" },
+        "is_feasible": { "type": "boolean" },
+        "created_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["scenario_id", "name", "product_id", "selling_price", "unit_cost", "inventory"]
+    },
+    "DatasetMetadata": {
+      "title": "DatasetMetadata",
+      "description": "Retail dataset catalog entry and quality metrics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "maxLength": 64 },
+        "row_count": { "type": "number" },
+        "is_synthetic": { "type": "boolean" },
+        "created_at": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "source", "row_count"]
+    }
+  },
+  "firestore": {
+    "/scenarios/{scenarioId}": {
+      "schema": "Scenario",
+      "description": "Collection of saved commercial decision scenarios"
+    },
+    "/datasets/{datasetId}": {
+      "schema": "DatasetMetadata",
+      "description": "Collection of active and saved retail datasets"
+    },
+    "/test/{testId}": {
+      "schema": "object",
+      "description": "Health check and connection verification endpoint"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: shopmind-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: shopmind_user
+      POSTGRES_PASSWORD: shopmind_secure_password
+      POSTGRES_DB: shopmind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: shopmind-fastapi
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://shopmind_user:shopmind_secure_password@db:5432/shopmind_db
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
