@@ -45,6 +45,8 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
+    // Allow the same file to be selected again after correcting a mapping or validation issue.
+    e.target.value = '';
 
     const extension = selected.name.split('.').pop()?.toLowerCase();
     const allowedMimeTypes = [
