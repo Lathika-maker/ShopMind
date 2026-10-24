@@ -26,11 +26,7 @@ import {
   ScenarioSimulationResult,
   BusinessConstraints,
 } from './types/retail.ts';
-import {
-  testFirestoreConnection,
-  loadScenariosFromFirestore,
-  saveScenarioToFirestore,
-} from './services/firebase.ts';
+import { testFirestoreConnection } from './services/firebase.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('landing');
@@ -101,22 +97,11 @@ export default function App() {
     fetchScenarios();
     fetchConstraints();
 
-    // Verify Firestore connection on boot
-    testFirestoreConnection().then(res => {
-      setFirebaseConnected(res.connected);
-      if (res.connected) {
-        loadScenariosFromFirestore().then(cloudScenarios => {
-          if (cloudScenarios && cloudScenarios.length > 0) {
-            setScenarios(prev => {
-              const map = new Map<string, ScenarioSimulationResult>();
-              prev.forEach(s => map.set(s.scenario_id, s));
-              cloudScenarios.forEach(s => map.set(s.scenario_id, s));
-              return Array.from(map.values());
-            });
-          }
-        }).catch(() => {});
-      }
-    }).catch(() => setFirebaseConnected(false));
+    // Verify Firestore connectivity only. Scenario results are loaded from the
+    // active dataset API so scenarios from an older dataset cannot reappear.
+    testFirestoreConnection()
+      .then(res => setFirebaseConnected(res.connected))
+      .catch(() => setFirebaseConnected(false));
   }, []);
 
   // Reset or clear dataset
