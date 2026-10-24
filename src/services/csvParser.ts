@@ -465,6 +465,20 @@ export function parseAndValidateCSV(
     product_items: productItems,
     categories: uniqueCats,
     is_synthetic: false,
+    available_fields: {
+      date: Boolean(dateCol),
+      product_id: Boolean(prodIdCol),
+      product_name: Boolean(prodNameCol),
+      category: Boolean(catCol),
+      units_sold: Boolean(unitsCol),
+      price: Boolean(priceCol && priceCol !== '__derive_unit_price_from_revenue__'),
+      revenue: Boolean(revenueCol),
+      unit_cost: Boolean(costCol),
+      discount_pct: Boolean(discCol),
+      inventory_on_hand: Boolean(invCol),
+      promo_active: Boolean(promoCol),
+      competitor_price: Boolean(compCol),
+    },
   };
 
   return {
