@@ -154,7 +154,7 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
       mapping.product_id = raw;
     } else if (!mapping.product_name && (clean.includes('title') || clean.includes('product_name') || clean.includes('item_name') || clean.includes('description') || clean === 'product' || clean === 'item' || clean.includes('name'))) {
       mapping.product_name = raw;
-    } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group') || clean.includes('region') || clean.includes('location') || clean.includes('store'))) {
+    } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group') || clean.includes('region') || clean.includes('location') || clean.includes('store') || clean.includes('country'))) {
       mapping.category = raw;
     } else if (!mapping.revenue && (clean === 'revenue' || clean.includes('revenue') || clean.includes('sales_value') || clean.includes('gross_sales') || clean.includes('net_sales') || clean.includes('total_sales') || clean.includes('turnover'))) {
       mapping.revenue = raw;
@@ -234,7 +234,52 @@ export function parseAndNormalizeDate(dateStr: string): string | null {
     return null;
   }
 
-  // Try standard Date parsing
+  // Support unambiguous slash/dash date formats without relying on host locale.
+  // A value such as 01/02/2025 is ambiguous (day/month versus month/day), so reject
+  // it instead of silently choosing a locale-specific interpretation.
+  const yearFirst = trimmed.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  if (yearFirst) {
+    const [, yearText, monthText, dayText] = yearFirst;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (year >= 1970 && year <= 2100 &&
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day) {
+      return `${yearText}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return null;
+  }
+
+  const dayMonthOrMonthDay = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (dayMonthOrMonthDay) {
+    const first = Number(dayMonthOrMonthDay[1]);
+    const second = Number(dayMonthOrMonthDay[2]);
+    const year = Number(dayMonthOrMonthDay[3]);
+    let month: number;
+    let day: number;
+    if (first > 12 && second >= 1 && second <= 12) {
+      day = first;
+      month = second;
+    } else if (second > 12 && first >= 1 && first <= 12) {
+      month = first;
+      day = second;
+    } else {
+      return null;
+    }
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (year >= 1970 && year <= 2100 &&
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return null;
+  }
+
+  // ISO and unambiguous textual dates can safely use the built-in parser.
   const timestamp = Date.parse(trimmed);
   if (isNaN(timestamp)) return null;
 
