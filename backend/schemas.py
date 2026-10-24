@@ -36,6 +36,7 @@ class ScenarioInputSchema(BaseModel):
     promotion_cost: float = Field(default=0.0, ge=0)
     advertising_cost: float = Field(default=0.0, ge=0)
     inventory: float = Field(ge=0)
+    demand_assumption: Optional[float] = Field(default=None, ge=0)
     competitor_price: Optional[float] = None
     is_promo: Optional[bool] = False
 
