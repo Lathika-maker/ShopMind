@@ -28,6 +28,7 @@ import {
   detectDemandRegimes,
   trainAndEvaluateForecast,
   simulateScenario,
+  runStressTest,
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
 import {
@@ -130,6 +131,10 @@ console.log('\n--- 3. Testing Malformed Dates & Date Normalization ---');
 {
   // Test unit date normalizer
   assert(parseAndNormalizeDate('2025-05-15') === '2025-05-15', 'Valid ISO YYYY-MM-DD should pass');
+  assert(parseAndNormalizeDate('2025/5/15') === '2025-05-15', 'Year-first slash dates normalize deterministically');
+  assert(parseAndNormalizeDate('25/03/2025') === '2025-03-25', 'Unambiguous day-first dates normalize deterministically');
+  assert(parseAndNormalizeDate('03/25/2025') === '2025-03-25', 'Unambiguous month-first dates normalize deterministically');
+  assert(parseAndNormalizeDate('01/02/2025') === null, 'Ambiguous slash dates are rejected rather than guessed by locale');
   assert(parseAndNormalizeDate('2025-99-99') === null, 'Out of bounds month/day must be null');
   assert(parseAndNormalizeDate('invalid-date') === null, 'Gibberish date string must be null');
   assert(parseAndNormalizeDate('') === null, 'Empty date string must be null');
@@ -526,6 +531,30 @@ console.log('\n--- 11. Testing quoted values and incomplete optional fields ---'
   console.log('  ✓ Quoted records parse correctly and partial optional fields are not treated as reliable zeros.');
 }
 
-console.log('\n=============================================================');
-console.log('🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (11/11 TEST SUITES)');
-console.log('=============================================================\n');
+// =========================================================================
+// TEST SUITE 12: Configurable stress-test assumptions
+// =========================================================================
+console.log('\n--- 12. Testing configurable demand stress assumptions ---');
+
+{
+  const stressInput = {
+    name: 'Stress Test',
+    product_id: 'SKU-STRESS',
+    selling_price: 10,
+    unit_cost: 5,
+    discount_pct: 0,
+    promotion_cost: 0,
+    advertising_cost: 0,
+    inventory: 200,
+  };
+  const baseline = simulateScenario(stressInput, 100, 'Stress Product', 'historical_average');
+  const stress = runStressTest(baseline, stressInput, undefined, 10, 20);
+  assert(stress.conservative_case.demand === 90, 'Conservative shock uses the configured 10% contraction');
+  assert(stress.high_demand_case.demand === 120, 'High shock uses the configured 20% surge');
+  assert(stress.conservative_case.name.includes('-10%'), 'Conservative scenario label reflects configured shock');
+  assert(stress.high_demand_case.name.includes('+20%'), 'High scenario label reflects configured shock');
+
+  console.log('  ✓ Stress outcomes and labels follow the configured demand shocks.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (12/12 TEST SUITES)\n=============================================================\n');
