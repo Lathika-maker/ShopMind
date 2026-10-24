@@ -142,7 +142,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         />
         <KPICard
           label="Average Units per Record"
-          value={typeof averageUnitsPerObservation === 'number' ? `${averageUnitsPerObservation} units` : `${averageUnitsPerObservation}`}
+          value={averageUnitsPerObservation === 'N/A' ? 'N/A' : `${averageUnitsPerObservation} units`}
           subtext="Mean of mapped units_sold values"
           contextNote="Per row; not automatically per day"
           trend={{ value: 'From dataset', neutral: true }}
