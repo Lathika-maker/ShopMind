@@ -3,6 +3,7 @@ SHOPMIND — FastAPI Retail Decision Intelligence Service
 """
 
 import os
+from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -46,9 +47,14 @@ def health_check():
 
 @app.post("/api/scenarios/simulate", response_model=ScenarioSimulationResponse)
 def simulate_scenario_endpoint(payload: ScenarioInputSchema):
+    if payload.demand_assumption is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide demand_assumption from the active uploaded dataset or as an explicitly stated user assumption. The Python service does not invent baseline demand.",
+        )
+
     effective_price = payload.selling_price * (1.0 - (payload.discount_pct / 100.0))
-    # Synthetic empirical baseline demand estimation
-    assumed_demand = max(1.0, round(50.0 * (payload.selling_price / effective_price)))
+    assumed_demand = payload.demand_assumption
     outcomes = compute_decision_outcomes(
         demand=assumed_demand,
         inventory=payload.inventory,
@@ -78,7 +84,7 @@ def simulate_scenario_endpoint(payload: ScenarioInputSchema):
         advertising_cost=payload.advertising_cost,
         inventory=payload.inventory,
         demand=assumed_demand,
-        demand_source="fitted_model",
+        demand_source="user_assumed",
         fulfilled=outcomes["fulfilled"],
         unmet=outcomes["unmet"],
         leftover=outcomes["leftover"],
@@ -88,5 +94,5 @@ def simulate_scenario_endpoint(payload: ScenarioInputSchema):
         stock_out_risk_percent=outcomes["stock_out_risk_percent"],
         is_feasible=is_feasible,
         violated_constraints=violated,
-        created_at="2026-10-21T10:00:00Z"
+        created_at=datetime.now(timezone.utc).isoformat()
     )
