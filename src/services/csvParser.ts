@@ -71,7 +71,7 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
       mapping.date = raw;
     } else if (!mapping.product_id && (clean === 'product_id' || clean === 'sku' || clean === 'item_id' || clean === 'id' || clean.includes('product_id') || clean.includes('item_id') || clean.includes('sku') || clean.includes('stockcode') || clean.includes('stock_code') || clean.includes('item_code') || clean.includes('product_code') || clean === 'code')) {
       mapping.product_id = raw;
-    } else if (!mapping.product_name && (clean.includes('title') || clean.includes('product_name') || clean.includes('item_name') || clean === 'product' || clean === 'item' || clean.includes('name'))) {
+    } else if (!mapping.product_name && (clean.includes('title') || clean.includes('product_name') || clean.includes('item_name') || clean.includes('description') || clean === 'product' || clean === 'item' || clean.includes('name'))) {
       mapping.product_name = raw;
     } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group'))) {
       mapping.category = raw;
