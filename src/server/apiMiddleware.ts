@@ -368,7 +368,11 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       if (!fieldExists) return null;
       const values = records
         .map(record => (record as any)[field])
-        .filter((value: unknown): value is number => typeof value === 'number' && Number.isFinite(value));
+        .filter((value: unknown): value is number =>
+          typeof value === 'number' &&
+          Number.isFinite(value) &&
+          (field !== 'price' || value > 0)
+        );
       if (values.length === 0) return null;
       return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100;
     };
@@ -380,6 +384,11 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
       : Math.max(1, new Set(dates).size);
     const totalUnits = records.reduce((sum, record) => sum + record.units_sold, 0);
+    const totalRevenue = records.reduce((sum, record) => sum + (typeof record.revenue === 'number' ? record.revenue : 0), 0);
+    const hasTotalRevenue = activeMetadata.available_fields?.revenue === true;
+    const derivedUnitRevenue = hasTotalRevenue && totalUnits > 0
+      ? Math.round((totalRevenue / totalUnits) * 100) / 100
+      : null;
     const baseline = getProductBaseline(productId);
 
     return sendJson(res, 200, {
@@ -393,6 +402,10 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       average_units_per_record: Math.round((totalUnits / records.length) * 100) / 100,
       estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
       average_unit_price: average('price'),
+      derived_unit_price_from_revenue: activeMetadata.available_fields?.price === true ? null : derivedUnitRevenue,
+      derived_unit_price_note: activeMetadata.available_fields?.price === true || derivedUnitRevenue === null
+        ? null
+        : 'Calculated as total recorded revenue divided by total units sold; used only as a scenario price seed, never to fit price elasticity.',
       average_unit_cost: average('unit_cost'),
       average_inventory_on_hand: average('inventory_on_hand'),
       average_discount_pct: average('discount_pct'),
