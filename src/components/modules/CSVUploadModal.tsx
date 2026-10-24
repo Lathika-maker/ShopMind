@@ -377,6 +377,20 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
+                      Category / Region (Optional)
+                    </label>
+                    <select
+                      value={mapping.category}
+                      onChange={(e) => setMapping({ ...mapping, category: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="">-- Not provided --</option>
+                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
                       Units Sold (Target) <span className="text-rose-400">*</span>
                     </label>
                     <select
@@ -441,6 +455,34 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     >
                       <option value="">-- Not provided: inventory analysis unavailable --</option>
+                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Promotion / Campaign Flag (Optional)
+                    </label>
+                    <select
+                      value={mapping.promo_active}
+                      onChange={(e) => setMapping({ ...mapping, promo_active: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="">-- Not provided --</option>
+                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Competitor Price (Optional)
+                    </label>
+                    <select
+                      value={mapping.competitor_price}
+                      onChange={(e) => setMapping({ ...mapping, competitor_price: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="">-- Not provided --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
