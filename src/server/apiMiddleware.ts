@@ -70,7 +70,9 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
   // The 30-day horizon is explicit; no generic benchmark demand is substituted.
   const baseDemand = Math.max(0, Math.round(averageDailyDemand * 30));
 
-  const pricedRecords = productRecords.filter(record => Number.isFinite(record.price) && record.price > 0);
+  const pricedRecords = activeMetadata?.available_fields?.price === true
+    ? productRecords.filter(record => Number.isFinite(record.price) && record.price > 0)
+    : [];
   const distinctPrices = new Set(pricedRecords.map(record => Math.round(record.price * 100) / 100));
   const basePrice = pricedRecords.length > 0
     ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
@@ -594,9 +596,9 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     }
     const targetProd = (parsed.query.product_id as string) || activeRecords[0]?.product_id;
     const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-    if (!prodRecords.some(record => record.price > 0)) {
+    if (activeMetadata.available_fields?.price !== true || !prodRecords.some(record => record.price > 0)) {
       return sendJson(res, 400, {
-        error: 'Price sensitivity is unavailable because the active dataset has no mapped unit-price values. Total revenue is not a substitute for unit price.',
+        error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
       });
     }
     const result = computePriceElasticity(prodRecords);
@@ -738,7 +740,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
     // Only report price elasticity when genuine unit-price values and a sufficient
     // sample are available. Revenue or zero-filled missing prices cannot support it.
-    if (primaryRecords.some(record => record.price > 0) && elast.sufficiency !== 'insufficient') {
+    if (activeMetadata?.available_fields?.price === true && primaryRecords.some(record => record.price > 0) && elast.sufficiency !== 'insufficient') {
       insights.push({
         id: 'ins_price_elasticity',
         category: 'price_sensitivity',
