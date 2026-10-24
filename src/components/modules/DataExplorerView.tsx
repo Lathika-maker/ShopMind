@@ -247,7 +247,7 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                     <td className="py-2.5 px-4 font-sans text-slate-400 whitespace-nowrap">{r.date}</td>
                     <td className="py-2.5 px-4 text-[#E2B774] font-medium whitespace-nowrap">{r.product_id}</td>
                     <td className="py-2.5 px-4 font-sans text-white font-medium whitespace-nowrap">{r.product_name}</td>
-                    <td className="py-2.5 px-4 font-sans text-slate-400 whitespace-nowrap">{r.category}</td>
+                    <td className="py-2.5 px-4 font-sans text-slate-400 whitespace-nowrap">{metadata.available_fields?.category === false || !r.category ? 'N/A' : r.category}</td>
                     <td className="py-2.5 px-4 text-right font-bold text-white">{r.units_sold}</td>
                     <td className="py-2.5 px-4 text-right text-slate-200">
                       {typeof r.revenue === 'number' ? `${r.revenue.toFixed(2)}` : <span className="text-slate-500">N/A</span>}
