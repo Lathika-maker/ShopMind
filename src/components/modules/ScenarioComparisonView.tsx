@@ -34,6 +34,16 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
   scenarios,
   onNavigate,
 }) => {
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    scenarios.slice(0, 3).map(s => s.scenario_id)
+  );
+
+  React.useEffect(() => {
+    const validIds = selectedIds.filter(id => scenarios.some(s => s.scenario_id === id));
+    const nextIds = validIds.length > 0 ? validIds : scenarios.slice(0, 3).map(s => s.scenario_id);
+    if (nextIds.join('|') !== selectedIds.join('|')) setSelectedIds(nextIds);
+  }, [scenarios, selectedIds]);
+
   if (scenarios.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 max-w-xl mx-auto text-center">
@@ -59,10 +69,6 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
       </div>
     );
   }
-
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    scenarios.slice(0, 3).map(s => s.scenario_id)
-  );
 
   const toggleSelect = (id: string) => {
     if (selectedIds.includes(id)) {
