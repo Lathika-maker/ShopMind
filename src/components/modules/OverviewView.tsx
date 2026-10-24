@@ -155,10 +155,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           trend={{ value: hasUnitPrice ? 'Mapped' : 'Not provided', neutral: true }}
         />
         <KPICard
-          label="Saved Decision Scenarios"
+          label="Session Decision Scenarios"
           value={scenarios.length}
           subtext={`${scenarios.filter(s => s.is_feasible).length} feasible`}
-          contextNote={scenarios.length ? 'Calculated from current dataset' : 'No scenarios created yet'}
+          contextNote={scenarios.length ? 'Calculated in current session' : 'No scenarios in this session yet'}
           trend={scenarios.length ? {
             value: scenarios.some(s => s.stock_out_risk_percent > 15) ? 'Risk warning' : 'Within limits',
             isPositive: !scenarios.some(s => s.stock_out_risk_percent > 15),
