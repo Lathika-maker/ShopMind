@@ -148,7 +148,7 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
           onClick={handleApplyConstraints}
           className="px-3.5 py-1.5 text-xs font-semibold text-[#0B1120] bg-gradient-to-r from-[#F3E5CA] via-[#E2B774] to-[#C49B58] hover:brightness-105 active:scale-95 rounded transition-all cursor-pointer shadow-sm"
         >
-          Save Constraint Thresholds
+          Apply Constraint Thresholds
         </button>
       </div>
 
