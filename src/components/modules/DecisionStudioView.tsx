@@ -488,9 +488,9 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               </p>
             </div>
             {previewResult && (
-              <span className={\`text-xs font-mono px-2 py-0.5 rounded \${previewResult.is_feasible
+              <span className={`text-xs font-mono px-2 py-0.5 rounded ${previewResult.is_feasible
                 ? 'bg-emerald-950/40 border border-emerald-800/80 text-emerald-400'
-                : 'bg-rose-950/40 border border-rose-800/80 text-rose-400'}\`}>
+                : 'bg-rose-950/40 border border-rose-800/80 text-rose-400'}`}>
                 {previewResult.is_feasible ? 'Constraints Feasible' : 'Constraint Violation'}
               </span>
             )}
@@ -571,12 +571,12 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {[
-                  ['Estimated Demand (30 days)', \`\${previewResult.demand.toLocaleString()} units\`],
-                  ['Fulfilled Units', \`\${previewResult.fulfilled.toLocaleString()} units\`],
-                  ['Gross Revenue', \`$\${previewResult.revenue.toLocaleString()}\`],
-                  ['Estimated Profit', \`$\${previewResult.estimated_profit.toLocaleString()}\`],
-                  ['Profit Margin', \`\${previewResult.profit_margin_pct}%\`],
-                  ['Stock-out Risk', \`\${previewResult.stock_out_risk_percent}%\`],
+                  ['Estimated Demand (30 days)', `${previewResult.demand.toLocaleString()} units`],
+                  ['Fulfilled Units', `${previewResult.fulfilled.toLocaleString()} units`],
+                  ['Gross Revenue', `$${previewResult.revenue.toLocaleString()}`],
+                  ['Estimated Profit', `$${previewResult.estimated_profit.toLocaleString()}`],
+                  ['Profit Margin', `${previewResult.profit_margin_pct}%`],
+                  ['Stock-out Risk', `${previewResult.stock_out_risk_percent}%`],
                 ].map(([label, value]) => (
                   <div key={label} className="p-3 bg-slate-900 rounded border border-slate-800">
                     <div className="text-slate-400 text-[10px] uppercase font-medium">{label}</div>
