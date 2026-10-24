@@ -20,6 +20,7 @@ import {
   inferColumnMapping,
   splitCSVLine,
   parseCSVText,
+  parseNumericValue,
   parseAndNormalizeDate,
 } from '../services/csvParser.ts';
 import {
@@ -502,6 +503,15 @@ console.log('\n--- 11. Testing quoted values and incomplete optional fields ---'
   assert(records.length === 3, 'Quoted multiline cells stay inside one record');
   assert(records[1][2] === 'Lamp, brass', 'Comma inside a quoted cell does not create a new column');
   assert(records[2][2] === 'two line note\nwith continuation', 'Newline inside a quoted cell is preserved');
+
+  const semicolonRows = parseCSVText('date;units_sold;region\n2025-01-01;15;North\n2025-01-02;18;South');
+  assert(semicolonRows[0].length === 3, 'Semicolon-delimited CSV headers are recognized');
+  assert(semicolonRows[1][1] === '15', 'Semicolon-delimited values are parsed');
+  const tabRows = parseCSVText('date\tunits_sold\n2025-01-01\t12');
+  assert(tabRows[0].length === 2 && tabRows[1][1] === '12', 'Tab-delimited CSV is recognized');
+  assert(parseNumericValue('$1,250.50') === 1250.5, 'Currency and thousands separators are parsed safely');
+  assert(parseNumericValue('10%', true) === 10, 'A percent sign is accepted for a discount field');
+  assert(parseNumericValue('1,23') === null, 'Ambiguous decimal comma is not guessed');
 
   const partialPriceCSV = `date,product_id,units_sold,price,unit_cost,inventory_on_hand
 2025-01-01,SKU-1,10,10.00,4.00,20
