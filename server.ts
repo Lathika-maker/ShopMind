@@ -249,6 +249,20 @@ app.get('/api/dataset', (_req: Request, res: Response) => {
 });
 
 // 3. Paginated Records with Filtering
+app.get('/api/dataset/trend', (_req: Request, res: Response) => {
+  if (!activeMetadata || activeRecords.length === 0) return res.json([]);
+  const monthlyTotals = new Map<string, number>();
+  activeRecords.forEach(record => {
+    const month = typeof record.date === 'string' ? record.date.slice(0, 7) : '';
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    monthlyTotals.set(month, (monthlyTotals.get(month) || 0) + record.units_sold);
+  });
+  const trend = Array.from(monthlyTotals.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([period, units_sold]) => ({ period, units_sold: Math.round(units_sold * 100) / 100 }));
+  res.json(trend);
+});
+
 app.get('/api/dataset/records', (req: Request, res: Response) => {
   if (activeRecords.length === 0) {
     return res.json({
