@@ -36,6 +36,20 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
   scenarios,
   onNavigate,
 }) => {
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(
+    scenarios[0]?.scenario_id || ''
+  );
+  const [conservativeDropPct, setConservativeDropPct] = useState<number>(25);
+  const [highSurgePct, setHighSurgePct] = useState<number>(35);
+
+  React.useEffect(() => {
+    if (scenarios.length > 0 && !scenarios.some(s => s.scenario_id === selectedScenarioId)) {
+      setSelectedScenarioId(scenarios[0].scenario_id);
+    } else if (scenarios.length === 0 && selectedScenarioId !== '') {
+      setSelectedScenarioId('');
+    }
+  }, [scenarios, selectedScenarioId]);
+
   if (scenarios.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 max-w-xl mx-auto text-center">
@@ -49,7 +63,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
           No Scenarios Available for Stress Testing
         </h3>
         <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
-          Create and simulate decision scenarios in Decision Studio to test your inventory and pricing strategy against hypothetical volume shocks (-25% Conservative and +35% High Demand).
+          Create and simulate decision scenarios in Decision Studio to test your inventory and pricing strategy against hypothetical volume shocks that you can adjust below.
         </p>
         <button
           onClick={() => onNavigate('decision_studio')}
@@ -62,9 +76,6 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
     );
   }
 
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(
-    scenarios[0]?.scenario_id || ''
-  );
 
   const activeScenario = scenarios.find(s => s.scenario_id === selectedScenarioId) || scenarios[0];
 
@@ -78,13 +89,13 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
         promotion_cost: activeScenario.promotion_cost,
         advertising_cost: activeScenario.advertising_cost,
         inventory: activeScenario.inventory,
-      })
+      }, undefined, conservativeDropPct, highSurgePct)
     : null;
 
   const comparisonChartData = stressResult
     ? [
         {
-          case: 'Conservative (-25%)',
+          case: `Conservative (-${conservativeDropPct}%)`,
           demand: stressResult.conservative_case.demand,
           fulfilled: stressResult.conservative_case.fulfilled,
           profit: stressResult.conservative_case.estimated_profit,
@@ -98,7 +109,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
           stockout: stressResult.baseline.stock_out_risk_percent,
         },
         {
-          case: 'High Surge (+35%)',
+          case: `High Surge (+${highSurgePct}%)`,
           demand: stressResult.high_demand_case.demand,
           fulfilled: stressResult.high_demand_case.fulfilled,
           profit: stressResult.high_demand_case.estimated_profit,
@@ -141,19 +152,64 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
 
       {stressResult && (
         <>
+          <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Stress Assumptions</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Adjust hypothetical demand changes. These percentages are user-selected stress scenarios, not learned forecasts.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-300 mb-2">
+                  <label htmlFor="conservative-shock">Demand contraction</label>
+                  <span className="font-mono text-[#E2B774]">−{conservativeDropPct}%</span>
+                </div>
+                <input
+                  id="conservative-shock"
+                  type="range"
+                  min={0}
+                  max={75}
+                  step={5}
+                  value={conservativeDropPct}
+                  onChange={e => setConservativeDropPct(Number(e.target.value))}
+                  className="w-full accent-[#E2B774]"
+                />
+                <div className="text-[10px] text-slate-500">Range: 0% to 75% below baseline</div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-300 mb-2">
+                  <label htmlFor="high-demand-shock">Demand surge</label>
+                  <span className="font-mono text-[#E2B774]">+{highSurgePct}%</span>
+                </div>
+                <input
+                  id="high-demand-shock"
+                  type="range"
+                  min={0}
+                  max={150}
+                  step={5}
+                  value={highSurgePct}
+                  onChange={e => setHighSurgePct(Number(e.target.value))}
+                  className="w-full accent-[#E2B774]"
+                />
+                <div className="text-[10px] text-slate-500">Range: 0% to 150% above baseline</div>
+              </div>
+            </div>
+          </div>
+
           {/* Stress Vulnerability KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KPICard
               label="Max Profit Downside Exposure"
               value={`-$${stressResult.max_profit_loss.toLocaleString()}`}
-              subtext="Under -25% demand contraction"
+              subtext={`Under -${conservativeDropPct}% demand contraction`}
               contextNote="Direct margin loss"
               trend={{ value: 'Downside Risk', isPositive: false }}
             />
             <KPICard
               label="Worst-Case Stock-Out Risk"
               value={`${stressResult.worst_stockout_risk}%`}
-              subtext="Under +35% demand spike"
+              subtext={`Under +${highSurgePct}% demand spike`}
               contextNote={`${stressResult.high_demand_case.unmet} unmet units`}
               trend={{
                 value: stressResult.worst_stockout_risk > 20 ? 'High Vulnerability' : 'Acceptable',
@@ -256,7 +312,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-300 tabular-nums">
                   <tr className="hover:bg-slate-800/40">
-                    <td className="py-2.5 px-4 font-sans font-medium text-amber-400">Conservative (-25%)</td>
+                    <td className="py-2.5 px-4 font-sans font-medium text-amber-400">{`Conservative (-${conservativeDropPct}%)`}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.demand}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.inventory}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.fulfilled}</td>
@@ -276,7 +332,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                     <td className="py-2.5 px-4 text-right">{stressResult.baseline.leftover}</td>
                   </tr>
                   <tr className="hover:bg-slate-800/40">
-                    <td className="py-2.5 px-4 font-sans font-medium text-emerald-400">High Surge (+35%)</td>
+                    <td className="py-2.5 px-4 font-sans font-medium text-emerald-400">{`High Surge (+${highSurgePct}%)`}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.demand}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.inventory}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.fulfilled}</td>
