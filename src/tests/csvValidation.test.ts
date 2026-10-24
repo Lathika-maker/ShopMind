@@ -396,7 +396,18 @@ console.log('\n--- 9. Testing Column Mapping & Header Inferences ---');
     'CostPrice',
   ]);
   assert(inferred.date === 'TransDate', 'TransDate mapped to date');
+  assert(inferred.product_name === 'Description', 'Description mapped to product_name automatically');
   assert(inferred.units_sold === 'VolumeSold', 'VolumeSold mapped to units_sold');
+
+  const onlineRetailMapping = inferColumnMapping([
+    'InvoiceNo', 'StockCode', 'Description', 'Quantity', 'InvoiceDate',
+    'UnitPrice', 'CustomerID', 'Country',
+  ]);
+  assert(onlineRetailMapping.date === 'InvoiceDate', 'UCI InvoiceDate mapped to date');
+  assert(onlineRetailMapping.product_id === 'StockCode', 'UCI StockCode mapped to product_id');
+  assert(onlineRetailMapping.product_name === 'Description', 'UCI Description mapped to product_name');
+  assert(onlineRetailMapping.units_sold === 'Quantity', 'UCI Quantity mapped to units_sold');
+  assert(onlineRetailMapping.price === 'UnitPrice', 'UCI UnitPrice mapped to price');
   assert(inferred.price === 'RetailPrice', 'RetailPrice mapped to price');
   assert(inferred.unit_cost === 'CostPrice', 'CostPrice mapped to unit_cost');
 
