@@ -530,7 +530,7 @@ export function parseAndValidateCSV(
       ? row[prodIdCol]
       : (productNameValue || 'UNSPECIFIED_PRODUCT');
     const prodName = productNameValue || prodId;
-    const category = catCol && row[catCol] ? row[catCol] : 'General';
+    const category = catCol && row[catCol] ? row[catCol] : '';
 
     // Duplicate detection
     const uniqueKey = `${prodId}_${normalizedDate}`;
@@ -672,9 +672,12 @@ export function parseAndValidateCSV(
 
   const dates = cleanedRecords.map(r => r.date);
   const uniqueProds = Array.from(new Set(cleanedRecords.map(r => r.product_name)));
-  const uniqueCats = Array.from(new Set(cleanedRecords.map(r => r.category)));
+  const uniqueCats = Array.from(new Set(cleanedRecords.map(r => r.category).filter(Boolean)));
   const productItems = Array.from(
-    new Map(cleanedRecords.map(r => [r.product_id, { id: r.product_id, name: r.product_name, category: r.category }])).values()
+    new Map(cleanedRecords.map(r => [
+      r.product_id,
+      { id: r.product_id, name: r.product_name, ...(r.category ? { category: r.category } : {}) },
+    ])).values()
   );
 
   const metadata: DatasetMetadata = {
