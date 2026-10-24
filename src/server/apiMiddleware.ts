@@ -5,11 +5,7 @@
 
 import { IncomingMessage, ServerResponse } from 'http';
 import { parse as parseUrl } from 'url';
-import {
-  generateSyntheticDataset,
-  convertRecordsToCSV,
-  PRODUCTS_CATALOG,
-} from '../data/syntheticDemo.ts';
+import { convertRecordsToCSV } from '../data/syntheticDemo.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -27,11 +23,12 @@ import {
   simulateScenario,
   runStressTest,
 } from '../services/calculations.ts';
+import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
 
-// State management
-const initialDemo = generateSyntheticDataset();
-let activeMetadata: DatasetMetadata = initialDemo.metadata;
-let activeRecords: DataRecord[] = initialDemo.records;
+// Runtime starts empty. Only a validated user-uploaded CSV activates a dataset.
+let activeMetadata: DatasetMetadata | null = null;
+let activeRecords: DataRecord[] = [];
+let savedScenarios: ScenarioSimulationResult[] = [];
 
 let activeConstraints: BusinessConstraints = {
   min_profit_margin_pct: 25.0,
@@ -46,136 +43,77 @@ let activeConstraints: BusinessConstraints = {
   },
 };
 
-function createDefaultBenchmarkScenarios(): ScenarioSimulationResult[] {
-  return [
-    simulateScenario(
-      {
-        id: 'scen_artisan_baseline',
-        name: 'Artisan Tote — Standard Holiday Pricing',
-        description: 'Baseline regular pricing with standard promotional weekend discount',
-        product_id: 'PRD-101',
-        selling_price: 285,
-        unit_cost: 95,
-        discount_pct: 10,
-        promotion_cost: 450,
-        advertising_cost: 600,
-        inventory: 260,
-        competitor_price: 295,
-        is_promo: true,
-      },
-      215,
-      'Artisan Leather Tote',
-      'fitted_model',
-      activeConstraints
-    ),
-    simulateScenario(
-      {
-        id: 'scen_cashmere_flash',
-        name: 'Cashmere Knit — Flash Volume Push',
-        description: 'Aggressive 20% discount paired with high digital marketing budget',
-        product_id: 'PRD-102',
-        selling_price: 165,
-        unit_cost: 52,
-        discount_pct: 20,
-        promotion_cost: 850,
-        advertising_cost: 1200,
-        inventory: 480,
-        competitor_price: 170,
-        is_promo: true,
-      },
-      410,
-      'Cashmere Blend Knit',
-      'fitted_model',
-      activeConstraints
-    ),
-    simulateScenario(
-      {
-        id: 'scen_brass_lamp_premium',
-        name: 'Heritage Brass Lamp — Prestige Margin Hold',
-        description: 'Zero discount strategy to preserve prestige luxury brand positioning',
-        product_id: 'PRD-103',
-        selling_price: 220,
-        unit_cost: 78,
-        discount_pct: 0,
-        promotion_cost: 0,
-        advertising_cost: 300,
-        inventory: 140,
-        competitor_price: 215,
-        is_promo: false,
-      },
-      98,
-      'Heritage Brass Lamp',
-      'fitted_model',
-      activeConstraints
-    ),
-  ];
+type ScenarioDemandSource = 'elasticity_model' | 'historical_average';
+interface ProductDemandBaseline {
+  id: string;
+  name: string;
+  baseDemand: number;
+  basePrice: number | null;
+  elasticity: number | null;
 }
 
-function generateScenariosForDataset(
-  records: DataRecord[],
-  items: { id: string; name: string }[]
-): ScenarioSimulationResult[] {
-  const generated: ScenarioSimulationResult[] = [];
-  const targetItems = items.slice(0, 3);
-  targetItems.forEach((item, idx) => {
-    const prodRecs = records.filter(r => r.product_id === item.id);
-    const avgPrice = prodRecs.length > 0 ? prodRecs.reduce((s, r) => s + r.price, 0) / prodRecs.length : 100;
-    const avgCost = prodRecs.length > 0 ? prodRecs.reduce((s, r) => s + r.unit_cost, 0) / prodRecs.length : Math.round(avgPrice * 0.4);
-    const avgDemand = prodRecs.length > 0 ? Math.max(10, Math.round((prodRecs.reduce((s, r) => s + r.units_sold, 0) / prodRecs.length) * 7)) : 50;
-    const avgInv = prodRecs.length > 0 ? Math.max(10, Math.round(prodRecs.reduce((s, r) => s + r.inventory_on_hand, 0) / prodRecs.length)) : Math.round(avgDemand * 1.2);
+function getProductBaseline(productId: string): ProductDemandBaseline | null {
+  if (!activeMetadata || activeRecords.length === 0) return null;
+  const productRecords = activeRecords.filter(record => record.product_id === productId);
+  if (productRecords.length === 0) return null;
 
-    generated.push(
-      simulateScenario(
-        {
-          id: `scen_upl_${item.id}_baseline`,
-          name: `${item.name} — Baseline Pricing`,
-          description: `Empirical pricing baseline for ${item.name}`,
-          product_id: item.id,
-          selling_price: Math.round(avgPrice),
-          unit_cost: Math.round(avgCost),
-          discount_pct: 0,
-          promotion_cost: 150,
-          advertising_cost: 200,
-          inventory: Math.round(avgInv),
-          competitor_price: Math.round(avgPrice * 1.05),
-          is_promo: false,
-        },
-        avgDemand,
-        item.name,
-        'fitted_model',
-        activeConstraints
-      )
-    );
+  // Aggregate volume across the observed calendar span, so multiple transactions
+  // on the same date do not count as multiple selling days.
+  const dates = productRecords.map(record => record.date).filter(Boolean).sort();
+  const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
+  const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
+  const calendarDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+    ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
+    : Math.max(1, new Set(dates).size);
+  const totalUnits = productRecords.reduce((sum, record) => sum + record.units_sold, 0);
+  const averageDailyDemand = totalUnits / calendarDays;
+  // The 30-day horizon is explicit; no generic benchmark demand is substituted.
+  const baseDemand = Math.max(0, Math.round(averageDailyDemand * 30));
 
-    if (idx < 2) {
-      generated.push(
-        simulateScenario(
-          {
-            id: `scen_upl_${item.id}_promo`,
-            name: `${item.name} — Promotional Growth`,
-            description: `15% discount promotional test for ${item.name}`,
-            product_id: item.id,
-            selling_price: Math.round(avgPrice),
-            unit_cost: Math.round(avgCost),
-            discount_pct: 15,
-            promotion_cost: 300,
-            advertising_cost: 450,
-            inventory: Math.round(avgInv * 1.3),
-            competitor_price: Math.round(avgPrice),
-            is_promo: true,
-          },
-          Math.round(avgDemand * 1.35),
-          item.name,
-          'fitted_model',
-          activeConstraints
-        )
-      );
-    }
-  });
-  return generated.length > 0 ? generated : createDefaultBenchmarkScenarios();
+  const pricedRecords = productRecords.filter(record => Number.isFinite(record.price) && record.price > 0);
+  const distinctPrices = new Set(pricedRecords.map(record => Math.round(record.price * 100) / 100));
+  const basePrice = pricedRecords.length > 0
+    ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
+    : null;
+  const elasticityResult = distinctPrices.size >= 2 && pricedRecords.length >= 10
+    ? computePriceElasticity(productRecords)
+    : null;
+  const elasticity = elasticityResult && elasticityResult.sufficiency !== 'insufficient' &&
+    Number.isFinite(elasticityResult.elasticity)
+    ? elasticityResult.elasticity
+    : null;
+
+  return {
+    id: productId,
+    name: productRecords[0].product_name || productId,
+    baseDemand,
+    basePrice,
+    elasticity,
+  };
 }
 
-let savedScenarios: ScenarioSimulationResult[] = createDefaultBenchmarkScenarios();
+function estimateScenarioDemand(
+  product: ProductDemandBaseline,
+  input: ScenarioInput
+): { demand: number; source: ScenarioDemandSource } {
+  const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
+  const canUseEmpiricalElasticity =
+    product.basePrice !== null &&
+    product.basePrice > 0 &&
+    product.elasticity !== null &&
+    effectivePrice > 0;
+
+  // Do not invent a price elasticity or promotional lift. Without enough real
+  // price variation, use the observed historical baseline and label it honestly.
+  const priceEffect = canUseEmpiricalElasticity
+    ? Math.pow(effectivePrice / product.basePrice!, product.elasticity!)
+    : 1;
+  const demand = Math.max(0, Math.round(product.baseDemand * priceEffect));
+  return {
+    demand,
+    source: canUseEmpiricalElasticity ? 'elasticity_model' : 'historical_average',
+  };
+}
 
 function computeQualityReport(records: DataRecord[]): DataQualityReport {
   const issues: ValidationIssue[] = [];
