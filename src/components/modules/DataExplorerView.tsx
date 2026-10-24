@@ -104,10 +104,10 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
           <button
             onClick={onResetData}
             className="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors cursor-pointer flex items-center gap-1.5"
-            title="Reset to deterministic 365-day benchmark dataset"
+            title="Clear active uploaded dataset and dependent scenarios"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Reset Demo Data</span>
+            <span>Clear Dataset</span>
           </button>
           <button
             onClick={handleExportCSV}
