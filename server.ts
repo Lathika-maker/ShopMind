@@ -476,7 +476,9 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
   const totalUnits = prodRecords.reduce((sum, record) => sum + record.units_sold, 0);
   const baseDemand = Math.max(0, Math.round((totalUnits / calendarDays) * 30));
 
-  const pricedRecords = prodRecords.filter(r => Number.isFinite(r.price) && r.price > 0);
+  const pricedRecords = activeMetadata?.available_fields?.price === true
+    ? prodRecords.filter(r => Number.isFinite(r.price) && r.price > 0)
+    : [];
   const distinctPrices = new Set(pricedRecords.map(r => Math.round(r.price * 100) / 100));
   const basePrice = pricedRecords.length
     ? pricedRecords.reduce((sum, r) => sum + r.price, 0) / pricedRecords.length
@@ -625,11 +627,9 @@ app.get('/api/price-sensitivity', (req: Request, res: Response) => {
     const targetProd = (product_id as string) || activeRecords[0]?.product_id;
     const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
 
-    // Verify presence of price column
-    const hasPrice = prodRecords.some(r => r.price > 0);
-    if (!hasPrice) {
+    if (activeMetadata.available_fields?.price !== true || !prodRecords.some(r => r.price > 0)) {
       return res.status(400).json({
-        error: `Price data is missing or zero for product "${targetProd}". Price sensitivity analysis requires valid price observations.`,
+        error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
       });
     }
 
@@ -640,7 +640,7 @@ app.get('/api/price-sensitivity', (req: Request, res: Response) => {
       ...result,
     });
   } catch (err: any) {
-    res.status(500).json({ error: `Price sensitivity calculation failed: ${err.message}` });
+    res.status(500).json({ error: 'Price sensitivity calculation failed: ' + err.message });
   }
 });
 
