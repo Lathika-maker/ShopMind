@@ -230,6 +230,14 @@ export function parseAndValidateCSV(
 
   // Extract and validate headers
   const headers = parsedRows[0].map(header => header.trim());
+  if (headers.some(header => !header)) {
+    return {
+      success: false,
+      errors: ['The CSV header row contains an empty column name. Give every column a unique, non-empty header.'],
+      warnings: [],
+      rawHeaders: headers,
+    };
+  }
   const seenHeaders = new Set<string>();
   const duplicateHeaders: string[] = [];
 
@@ -336,6 +344,16 @@ export function parseAndValidateCSV(
   const cleanedRecords: DataRecord[] = [];
   const seenDateProdKeys = new Set<string>();
   let duplicateCount = 0;
+  const optionalFieldComplete: Record<string, boolean> = {
+    price: Boolean(priceCol),
+    revenue: Boolean(revenueCol),
+    unit_cost: Boolean(costCol),
+    discount_pct: Boolean(discCol),
+    inventory_on_hand: Boolean(invCol),
+    promo_active: Boolean(promoCol),
+    competitor_price: Boolean(compCol),
+  };
+  const fieldsWithBlankValues = new Set<string>();
 
   for (let i = 1; i < parsedRows.length; i++) {
     const lineNum = i + 1;
@@ -350,6 +368,25 @@ export function parseAndValidateCSV(
     const row: Record<string, string> = {};
     headers.forEach((h, idx) => {
       row[h] = values[idx] !== undefined ? values[idx].trim() : '';
+    });
+
+    // A mapped optional field with blank values is not silently treated as real zero.
+    // Keep ingestion flexible, but mark that field unavailable for aggregate analysis
+    // and show N/A in the UI until the source data is complete.
+    const mappedOptionalFields: Array<[string, string | undefined]> = [
+      ['price', priceCol],
+      ['revenue', revenueCol],
+      ['unit_cost', costCol],
+      ['discount_pct', discCol],
+      ['inventory_on_hand', invCol],
+      ['promo_active', promoCol],
+      ['competitor_price', compCol],
+    ];
+    mappedOptionalFields.forEach(([field, column]) => {
+      if (column && !row[column]?.trim()) {
+        optionalFieldComplete[field] = false;
+        fieldsWithBlankValues.add(field);
+      }
     });
 
     // Date validation
@@ -380,9 +417,12 @@ export function parseAndValidateCSV(
       continue;
     }
 
-    // Product ID
-    const prodId = prodIdCol && row[prodIdCol] ? row[prodIdCol] : 'DEFAULT_PRODUCT';
-    const prodName = prodNameCol && row[prodNameCol] ? row[prodNameCol] : prodId;
+    // Product ID. A product name can serve as a grouping key when a separate SKU is absent.
+    const productNameValue = prodNameCol && row[prodNameCol] ? row[prodNameCol] : '';
+    const prodId = prodIdCol && row[prodIdCol]
+      ? row[prodIdCol]
+      : (productNameValue || 'UNSPECIFIED_PRODUCT');
+    const prodName = productNameValue || prodId;
     const category = catCol && row[catCol] ? row[catCol] : 'General';
 
     // Duplicate detection
@@ -461,8 +501,8 @@ export function parseAndValidateCSV(
       promo = v === '1' || v === 'true' || v === 'yes' || v === 'y';
     }
 
-    // Competitor Price (optional)
-    let compPrice = price;
+    // Competitor Price (optional); do not substitute the product's own price.
+    let compPrice = 0;
     if (compCol && row[compCol] !== undefined && row[compCol] !== '') {
       const cp = Number(row[compCol]);
       if (!isNaN(cp) && cp >= 0) {
@@ -486,6 +526,14 @@ export function parseAndValidateCSV(
       competitor_price: Math.round(compPrice * 100) / 100,
     });
   }
+
+  if (!prodIdCol && !prodNameCol) {
+    warnings.push('No product identifier or name was mapped. All rows are grouped under UNSPECIFIED_PRODUCT.');
+  }
+
+  fieldsWithBlankValues.forEach(field => {
+    warnings.push(`The mapped ${field} column contains blank cells. That field is marked unavailable for the entire dataset so blanks are not interpreted as zero.`);
+  });
 
   if (errors.length > 0) {
     return {
@@ -534,17 +582,17 @@ export function parseAndValidateCSV(
     is_synthetic: false,
     available_fields: {
       date: Boolean(dateCol),
-      product_id: Boolean(prodIdCol),
-      product_name: Boolean(prodNameCol),
+      product_id: Boolean(prodIdCol || prodNameCol),
+      product_name: Boolean(prodNameCol || prodIdCol),
       category: Boolean(catCol),
-      units_sold: Boolean(unitsCol),
-      price: Boolean(priceCol && priceCol !== '__derive_unit_price_from_revenue__'),
-      revenue: Boolean(revenueCol),
-      unit_cost: Boolean(costCol),
-      discount_pct: Boolean(discCol),
-      inventory_on_hand: Boolean(invCol),
-      promo_active: Boolean(promoCol),
-      competitor_price: Boolean(compCol),
+      units_sold: true,
+      price: Boolean(priceCol && priceCol !== '__derive_unit_price_from_revenue__' && optionalFieldComplete.price),
+      revenue: Boolean(revenueCol && optionalFieldComplete.revenue),
+      unit_cost: Boolean(costCol && optionalFieldComplete.unit_cost),
+      discount_pct: Boolean(discCol && optionalFieldComplete.discount_pct),
+      inventory_on_hand: Boolean(invCol && optionalFieldComplete.inventory_on_hand),
+      promo_active: Boolean(promoCol && optionalFieldComplete.promo_active),
+      competitor_price: Boolean(compCol && optionalFieldComplete.competitor_price),
     },
   };
 
