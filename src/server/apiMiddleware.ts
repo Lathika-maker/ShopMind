@@ -300,6 +300,20 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     });
   }
 
+  if (req.method === 'GET' && pathname === '/api/dataset/trend') {
+    if (!activeMetadata || activeRecords.length === 0) return sendJson(res, 200, []);
+    const monthlyTotals = new Map<string, number>();
+    activeRecords.forEach(record => {
+      const month = typeof record.date === 'string' ? record.date.slice(0, 7) : '';
+      if (!/^\d{4}-\d{2}$/.test(month)) return;
+      monthlyTotals.set(month, (monthlyTotals.get(month) || 0) + record.units_sold);
+    });
+    const trend = Array.from(monthlyTotals.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([period, units_sold]) => ({ period, units_sold: Math.round(units_sold * 100) / 100 }));
+    return sendJson(res, 200, trend);
+  }
+
   if (req.method === 'GET' && pathname === '/api/dataset/records') {
     const q = parsed.query;
     let filtered = [...activeRecords];
