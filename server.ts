@@ -10,7 +10,6 @@ import { fileURLToPath } from 'url';
 import {
   generateSyntheticDataset,
   convertRecordsToCSV,
-  PRODUCTS_CATALOG,
 } from './src/data/syntheticDemo.ts';
 import {
   DataRecord,
@@ -382,31 +381,68 @@ app.get('/api/dataset/export', (_req: Request, res: Response) => {
 });
 
 // Helper: Dynamically derive baseline demand and product metadata from active uploaded records
-function getProductBaseline(productId: string) {
+type ScenarioDemandSource = 'elasticity_model' | 'historical_average';
+interface ProductDemandBaseline {
+  id: string;
+  name: string;
+  baseDemand: number;
+  basePrice: number | null;
+  elasticity: number | null;
+}
+
+function getProductBaseline(productId: string): ProductDemandBaseline | null {
+  if (!activeMetadata || activeRecords.length === 0) return null;
   const prodRecords = activeRecords.filter(r => r.product_id === productId);
-  if (prodRecords.length > 0) {
-    const name = prodRecords[0].product_name || productId;
-    const avgUnits = prodRecords.reduce((s, r) => s + r.units_sold, 0) / prodRecords.length;
-    const avgPrice = prodRecords.reduce((s, r) => s + r.price, 0) / prodRecords.length;
-    const avgCost = prodRecords.reduce((s, r) => s + r.unit_cost, 0) / prodRecords.length;
-    const elastRes = computePriceElasticity(prodRecords);
-    const elasticity = elastRes.sufficiency !== 'insufficient' ? elastRes.elasticity : -1.2;
-    return {
-      id: productId,
-      name,
-      baseDemand: Math.max(1, Math.round(avgUnits * 30)), // 30-day period demand
-      elasticity,
-      basePrice: avgPrice > 0 ? avgPrice : 100,
-      baseCost: avgCost > 0 ? avgCost : 40,
-    };
-  }
+  if (prodRecords.length === 0) return null;
+
+  const dates = prodRecords.map(r => r.date).filter(Boolean).sort();
+  const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
+  const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
+  const calendarDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+    ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
+    : Math.max(1, new Set(dates).size);
+  const totalUnits = prodRecords.reduce((sum, record) => sum + record.units_sold, 0);
+  const baseDemand = Math.max(0, Math.round((totalUnits / calendarDays) * 30));
+
+  const pricedRecords = prodRecords.filter(r => Number.isFinite(r.price) && r.price > 0);
+  const distinctPrices = new Set(pricedRecords.map(r => Math.round(r.price * 100) / 100));
+  const basePrice = pricedRecords.length
+    ? pricedRecords.reduce((sum, r) => sum + r.price, 0) / pricedRecords.length
+    : null;
+  const elasticityResult = distinctPrices.size >= 2 && pricedRecords.length >= 10
+    ? computePriceElasticity(prodRecords)
+    : null;
+  const elasticity = elasticityResult && elasticityResult.sufficiency !== 'insufficient' &&
+    Number.isFinite(elasticityResult.elasticity)
+    ? elasticityResult.elasticity
+    : null;
+
   return {
     id: productId,
-    name: productId,
-    baseDemand: 100,
-    elasticity: -1.2,
-    basePrice: 100,
-    baseCost: 50,
+    name: prodRecords[0].product_name || productId,
+    baseDemand,
+    basePrice,
+    elasticity,
+  };
+}
+
+function estimateScenarioDemand(product: ProductDemandBaseline, input: ScenarioInput): {
+  demand: number;
+  source: ScenarioDemandSource;
+} {
+  const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
+  const useElasticity = product.basePrice !== null &&
+    product.basePrice > 0 &&
+    product.elasticity !== null &&
+    effectivePrice > 0;
+  // Promotion lift is not assumed. Only use price-response adjustment when the
+  // uploaded dataset contains enough actual price variation to estimate it.
+  const priceEffect = useElasticity
+    ? Math.pow(effectivePrice / product.basePrice!, product.elasticity!)
+    : 1;
+  return {
+    demand: Math.max(0, Math.round(product.baseDemand * priceEffect)),
+    source: useElasticity ? 'elasticity_model' : 'historical_average',
   };
 }
 
@@ -544,29 +580,29 @@ app.get('/api/scenarios', (_req: Request, res: Response) => {
 app.post('/api/scenarios', (req: Request, res: Response) => {
   try {
     const input: ScenarioInput = req.body;
-    if (input.selling_price === undefined || input.selling_price <= 0) {
-      return res.status(400).json({ error: 'Explicit positive selling price is required.' });
+    if (!activeMetadata || activeRecords.length === 0) {
+      return res.status(400).json({ error: 'No active dataset. Upload a CSV before creating a commercial scenario.' });
     }
-    if (input.unit_cost === undefined || input.unit_cost < 0) {
-      return res.status(400).json({ error: 'Explicit non-negative unit cost is required.' });
+    if (!input.product_id || !Number.isFinite(input.selling_price) || input.selling_price <= 0) {
+      return res.status(400).json({ error: 'Select a product from the active dataset and provide a positive selling price.' });
     }
-    if (input.inventory === undefined || input.inventory < 0) {
-      return res.status(400).json({ error: 'Explicit non-negative inventory is required.' });
+    if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) {
+      return res.status(400).json({ error: 'Provide an explicit non-negative unit cost for this scenario.' });
+    }
+    if (!Number.isFinite(input.inventory) || input.inventory < 0) {
+      return res.status(400).json({ error: 'Provide an explicit non-negative inventory quantity for this scenario.' });
     }
 
-    const prod = getProductBaseline(input.product_id);
-
-    // Calculate model-grounded demand based on empirical elasticity
-    const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
-    const priceRatio = effectivePrice / (prod.basePrice || input.selling_price || 1);
-    const promoLift = input.is_promo ? 1.3 : 1.0;
-    const estimatedDemand = Math.max(1, Math.round(prod.baseDemand * Math.pow(priceRatio, prod.elasticity) * promoLift));
-
+    const product = getProductBaseline(input.product_id);
+    if (!product) {
+      return res.status(404).json({ error: 'The selected product does not exist in the active uploaded dataset.' });
+    }
+    const estimate = estimateScenarioDemand(product, input);
     const simulated = simulateScenario(
       input,
-      estimatedDemand,
-      prod.name,
-      'fitted_model',
+      estimate.demand,
+      product.name,
+      estimate.source,
       activeConstraints
     );
 
@@ -583,18 +619,21 @@ app.put('/api/scenarios/:id', (req: Request, res: Response) => {
   if (idx === -1) {
     return res.status(404).json({ error: `Scenario ${id} not found.` });
   }
-  const input: ScenarioInput = req.body;
-  const prod = getProductBaseline(input.product_id);
-  const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
-  const priceRatio = effectivePrice / (prod.basePrice || input.selling_price || 1);
-  const promoLift = input.is_promo ? 1.3 : 1.0;
-  const estimatedDemand = Math.max(1, Math.round(prod.baseDemand * Math.pow(priceRatio, prod.elasticity) * promoLift));
+  if (!activeMetadata || activeRecords.length === 0) {
+    return res.status(400).json({ error: 'No active dataset. Upload a CSV before updating a scenario.' });
+  }
 
+  const input: ScenarioInput = req.body;
+  const product = getProductBaseline(input.product_id);
+  if (!product) {
+    return res.status(404).json({ error: 'The selected product does not exist in the active uploaded dataset.' });
+  }
+  const estimate = estimateScenarioDemand(product, input);
   const updated = simulateScenario(
     { ...input, id },
-    estimatedDemand,
-    prod.name,
-    'fitted_model',
+    estimate.demand,
+    product.name,
+    estimate.source,
     activeConstraints
   );
 
