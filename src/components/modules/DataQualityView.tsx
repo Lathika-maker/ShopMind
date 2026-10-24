@@ -49,7 +49,7 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
             Data Quality & Completeness Audit
           </h2>
           <div className="text-xs text-slate-400 mt-0.5">
-            Validation evaluation for active dataset: {metadata.name}
+            Validation results for active dataset: {metadata.name}
           </div>
         </div>
 
@@ -64,32 +64,35 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
       {/* Top Integrity KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          label="Completeness Health Score"
+          label="Mapped Field Quality"
           value={`${quality.completeness_score} / 100`}
-          subtext="Overall data health"
-          contextNote="6 field validation"
-          trend={{ value: quality.completeness_score >= 95 ? 'Optimal' : 'Needs Review', isPositive: quality.completeness_score >= 95 }}
+          subtext="Row-level validation score"
+          contextNote="Checks over available columns"
+          trend={{ value: quality.completeness_score >= 95 ? 'Strong' : 'Review needed', isPositive: quality.completeness_score >= 95 }}
         />
         <KPICard
-          label="Total Records Audited"
+          label="Records Audited"
           value={quality.total_records.toLocaleString()}
-          subtext={`${quality.valid_records.toLocaleString()} valid rows`}
-          contextNote="Zero loss ingestion"
-          trend={{ value: '100% Ingested', isPositive: true }}
+          subtext={`${quality.valid_records.toLocaleString()} rows after duplicate count`}
+          contextNote="Active uploaded dataset"
+          trend={{
+            value: quality.total_records ? `${Math.round((quality.valid_records / quality.total_records) * 100)}% retained` : 'No records',
+            isPositive: quality.valid_records === quality.total_records,
+          }}
         />
         <KPICard
-          label="Duplicate POS Records"
+          label="Duplicate Product-Date Rows"
           value={quality.duplicate_count}
           subtext="Product + Date key"
-          contextNote="Key integrity check"
-          trend={{ value: quality.duplicate_count === 0 ? 'Zero duplicates' : 'Duplicates flagged', isPositive: quality.duplicate_count === 0 }}
+          contextNote="Duplicate-key check"
+          trend={{ value: quality.duplicate_count === 0 ? 'None detected' : 'Review duplicates', isPositive: quality.duplicate_count === 0 }}
         />
         <KPICard
-          label="Date Horizon Continuity"
-          value={`${quality.date_range_days} Days`}
+          label="Date Span"
+          value={`${quality.date_range_days} days`}
           subtext={`${metadata.date_range.start} → ${metadata.date_range.end}`}
-          contextNote="Continuous daily sequence"
-          trend={{ value: 'No date gaps', isPositive: true }}
+          contextNote="Inclusive calendar span"
+          trend={{ value: 'From uploaded dates', neutral: true }}
         />
       </div>
 
@@ -101,7 +104,7 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
               Data Integrity Checks & Anomaly Log
             </h3>
             <p className="text-xs text-slate-400">
-              Evaluated against null values, negative pricing, COGS bounds, and date chronology.
+              Checks required values and any optional fields present in the uploaded CSV.
             </p>
           </div>
           <span className="text-xs font-mono text-slate-400">
@@ -112,7 +115,7 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
         {quality.issues.length === 0 ? (
           <div className="py-6 text-center text-xs text-emerald-400 flex items-center justify-center gap-2">
             <CheckCircle className="w-4 h-4" />
-            <span>All schema integrity checks passed. Zero missing values or negative pricing anomalies detected.</span>
+            <span>No row-level issues were flagged by the current checks. Fields marked N/A below were not supplied in the uploaded CSV.</span>
           </div>
         ) : (
           <div className="space-y-2">
@@ -170,11 +173,11 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
               {quality.summary_stats.map((stat) => (
                 <tr key={stat.column} className="hover:bg-slate-800/40">
                   <td className="py-2.5 px-4 font-sans font-medium text-white">{stat.column}</td>
-                  <td className="py-2.5 px-4 text-right">{stat.min}</td>
-                  <td className="py-2.5 px-4 text-right text-[#E2B774] font-semibold">{stat.mean}</td>
-                  <td className="py-2.5 px-4 text-right">{stat.median}</td>
-                  <td className="py-2.5 px-4 text-right">{stat.max}</td>
-                  <td className="py-2.5 px-4 text-right text-slate-400">{stat.std}</td>
+                  <td className="py-2.5 px-4 text-right">{metadata.available_fields?.[stat.column] === false ? 'N/A' : stat.min}</td>
+                  <td className="py-2.5 px-4 text-right text-[#E2B774] font-semibold">{metadata.available_fields?.[stat.column] === false ? 'N/A' : stat.mean}</td>
+                  <td className="py-2.5 px-4 text-right">{metadata.available_fields?.[stat.column] === false ? 'N/A' : stat.median}</td>
+                  <td className="py-2.5 px-4 text-right">{metadata.available_fields?.[stat.column] === false ? 'N/A' : stat.max}</td>
+                  <td className="py-2.5 px-4 text-right text-slate-400">{metadata.available_fields?.[stat.column] === false ? 'N/A' : stat.std}</td>
                 </tr>
               ))}
             </tbody>
