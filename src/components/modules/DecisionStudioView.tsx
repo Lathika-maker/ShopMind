@@ -84,6 +84,13 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
     setProductSummary(null);
     setPreviewResult(null);
     setErrorMsg(null);
+    setSellingPrice('');
+    setSellingPriceSource('missing');
+    setUnitCost('');
+    setInventory('');
+    setCompetitorPrice('');
+    setDiscountPct(0);
+    setMissingFields([]);
     fetch('/api/dataset/product-summary?product_id=' + encodeURIComponent(selectedProduct), {
       signal: controller.signal,
     })
@@ -147,6 +154,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
     const controller = new AbortController();
     setPreviewLoading(true);
     setPreviewResult(null);
+    setErrorMsg(null);
     const timer = window.setTimeout(() => {
       fetch('/api/scenarios/simulate', {
         method: 'POST',
@@ -461,7 +469,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="pt-2">
             <button
               onClick={handleSaveScenario}
-              disabled={isSaving}
+              disabled={isSaving || !canPreview || previewLoading}
               className="w-full py-2.5 text-xs font-semibold text-[#0B1120] bg-gradient-to-r from-[#F3E5CA] via-[#E2B774] to-[#C49B58] hover:brightness-105 active:scale-95 rounded transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
             >
               <Save className="w-3.5 h-3.5" />
