@@ -233,6 +233,16 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
     }
   };
 
+  if (!metadata || metadata.row_count === 0) {
+    return (
+      <EmptyDatasetState
+        moduleName="Decision Studio"
+        description="Upload a CSV dataset to simulate scenarios using observed demand and explicitly supplied commercial inputs."
+        onOpenUpload={() => onNavigate('explorer')}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -274,7 +284,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               Commercial Scenario Parameters
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">
-              Fitted Model Demand Link
+              Active uploaded data
             </span>
           </div>
 
@@ -316,12 +326,12 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Base Selling Price ($)
+                Selling Price ($)
               </label>
               <input
                 type="number"
                 value={sellingPrice}
-                onChange={(e) => setSellingPrice(Math.max(1, parseFloat(e.target.value) || 0))}
+                onChange={(e) => setSellingPrice(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono"
               />
             </div>
@@ -332,7 +342,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               <input
                 type="number"
                 value={unitCost}
-                onChange={(e) => setUnitCost(Math.max(0, parseFloat(e.target.value) || 0))}
+                onChange={(e) => setUnitCost(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono"
               />
             </div>
@@ -361,7 +371,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Campaign Marketing
+                Campaign Marketing (no assumed lift)
               </label>
               <label className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-700 rounded text-xs text-slate-300 cursor-pointer">
                 <input
@@ -379,7 +389,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Promotion Cost ($)
+                Promotion Budget ($, assumption)
               </label>
               <input
                 type="number"
@@ -390,7 +400,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Advertising Cost ($)
+                Advertising Budget ($, assumption)
               </label>
               <input
                 type="number"
@@ -405,12 +415,12 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Available Inventory (Units)
+                Available Inventory (units)
               </label>
               <input
                 type="number"
                 value={inventory}
-                onChange={(e) => setInventory(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onChange={(e) => setInventory(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono"
               />
             </div>
@@ -421,7 +431,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               <input
                 type="number"
                 value={competitorPrice}
-                onChange={(e) => setCompetitorPrice(Math.max(1, parseFloat(e.target.value) || 0))}
+                onChange={(e) => setCompetitorPrice(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono"
               />
             </div>
@@ -440,121 +450,94 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Live Calculated Simulation Outcomes */}
+        {/* Right Column: calculated, data-grounded preview */}
         <div className="lg:col-span-6 bg-[#0F172A] border border-slate-800 rounded-lg p-5 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div>
-              <h3 className="text-sm font-semibold text-white">
-                Simulated Business Outcomes
-              </h3>
+              <h3 className="text-sm font-semibold text-white">Scenario Preview</h3>
               <p className="text-xs text-slate-400">
-                Grounded in empirical elasticity and verified economic accounting equations.
+                Results are returned by the same API logic used when saving a scenario.
               </p>
             </div>
-            <div className={`text-xs font-mono px-2 py-0.5 rounded ${
-              isFeasible
+            {previewResult && (
+              <span className={\`text-xs font-mono px-2 py-0.5 rounded \${previewResult.is_feasible
                 ? 'bg-emerald-950/40 border border-emerald-800/80 text-emerald-400'
-                : 'bg-rose-950/40 border border-rose-800/80 text-rose-400'
-            }`}>
-              {isFeasible ? 'Constraints Feasible' : 'Constraint Violation'}
-            </div>
+                : 'bg-rose-950/40 border border-rose-800/80 text-rose-400'}\`}>
+                {previewResult.is_feasible ? 'Constraints Feasible' : 'Constraint Violation'}
+              </span>
+            )}
           </div>
 
-          {/* Feasibility Warning */}
-          {!isFeasible && (
-            <div className="p-3 bg-rose-950/30 border border-rose-800/80 rounded text-xs text-rose-300 space-y-1">
-              <div className="font-semibold flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                <span>Violated Business Constraints:</span>
-              </div>
-              <ul className="list-disc list-inside text-[11px] space-y-0.5">
-                {violatedConstraints.map((vc, i) => (
-                  <li key={i}>{vc}</li>
-                ))}
-              </ul>
+          {!productSummary ? (
+            <div className="py-10 text-center text-sm text-slate-500">
+              {metadata ? 'Loading product summary from the active dataset…' : 'Upload a CSV to begin.'}
+            </div>
+          ) : missingFields.length > 0 && (
+            <div className="p-3 bg-amber-950/20 border border-amber-800/60 rounded text-xs text-amber-200">
+              <div className="font-semibold mb-1">Enter the missing commercial inputs</div>
+              The uploaded file does not contain {missingFields.join(', ')}. These fields are left blank, not estimated from unrelated columns. Enter values explicitly to calculate profit and inventory outcomes.
             </div>
           )}
 
-          {/* Metric Grid */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Model Demand</div>
-              <div className="text-xl font-bold font-mono text-white tabular-nums mt-1">
-                {estimatedDemand} units
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                Fitted Price Elasticity Model
-              </div>
+          {errorMsg && (
+            <div role="alert" className="p-3 bg-rose-950/30 border border-rose-800 rounded text-xs text-rose-200">
+              {errorMsg}
             </div>
+          )}
 
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Fulfilled Units</div>
-              <div className="text-xl font-bold font-mono text-[#E2B774] tabular-nums mt-1">
-                {outcomes.fulfilled} units
+          {previewLoading ? (
+            <div className="py-10 text-center text-sm text-slate-400">Recalculating from the active dataset…</div>
+          ) : previewResult ? (
+            <>
+              <div className="p-3 bg-slate-900/70 border border-slate-800 rounded text-xs text-slate-300">
+                <div className="font-semibold text-white mb-1">Demand method</div>
+                {previewResult.demand_source === 'elasticity_model'
+                  ? 'Empirical price-elasticity adjustment. The uploaded data contained enough real price variation to estimate a response.'
+                  : 'Historical 30-day demand baseline. Price-response adjustment was not applied because the uploaded data did not support a reliable elasticity estimate.'}
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                min(demand, inventory)
+
+              {!previewResult.is_feasible && previewResult.violated_constraints.length > 0 && (
+                <div className="p-3 bg-rose-950/30 border border-rose-800/80 rounded text-xs text-rose-300 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Constraint violations</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {previewResult.violated_constraints.map((item, index) => <li key={index}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {[
+                  ['Estimated Demand (30 days)', \`\${previewResult.demand.toLocaleString()} units\`],
+                  ['Fulfilled Units', \`\${previewResult.fulfilled.toLocaleString()} units\`],
+                  ['Gross Revenue', \`$\${previewResult.revenue.toLocaleString()}\`],
+                  ['Estimated Profit', \`$\${previewResult.estimated_profit.toLocaleString()}\`],
+                  ['Profit Margin', \`\${previewResult.profit_margin_pct}%\`],
+                  ['Stock-out Risk', \`\${previewResult.stock_out_risk_percent}%\`],
+                ].map(([label, value]) => (
+                  <div key={label} className="p-3 bg-slate-900 rounded border border-slate-800">
+                    <div className="text-slate-400 text-[10px] uppercase font-medium">{label}</div>
+                    <div className="text-xl font-bold font-mono text-white tabular-nums mt-1">{value}</div>
+                  </div>
+                ))}
               </div>
+
+              <div className="p-3 bg-slate-900/60 rounded border border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-slate-400">Unmet demand / leftover inventory</span>
+                <span className="text-slate-200 font-mono">{previewResult.unmet} / {previewResult.leftover} units</span>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Profit uses the explicitly entered unit cost and campaign budgets. It is a scenario estimate, not an observed profit value.
+              </div>
+            </>
+          ) : (
+            <div className="py-8 text-center text-sm text-slate-400">
+              Enter a positive selling price, a unit cost, and available inventory to calculate a scenario preview. No financial output is shown until those inputs are provided.
             </div>
-
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Gross Revenue</div>
-              <div className="text-xl font-bold font-mono text-white tabular-nums mt-1">
-                ${outcomes.revenue.toLocaleString()}
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                ${effectivePrice.toFixed(2)} × {outcomes.fulfilled}
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Estimated Profit</div>
-              <div className="text-xl font-bold font-mono text-emerald-400 tabular-nums mt-1">
-                ${outcomes.estimated_profit.toLocaleString()}
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                (P - C)*F - Promo - Ad
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Profit Margin %</div>
-              <div className="text-xl font-bold font-mono text-white tabular-nums mt-1">
-                {outcomes.profit_margin_pct}%
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                Floor: {constraints.min_profit_margin_pct}%
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-900 rounded border border-slate-800">
-              <div className="text-slate-400 text-[10px] uppercase font-medium">Stock-Out Vulnerability</div>
-              <div className={`text-xl font-bold font-mono tabular-nums mt-1 ${
-                outcomes.stock_out_risk_percent > 15 ? 'text-amber-400' : 'text-emerald-400'
-              }`}>
-                {outcomes.stock_out_risk_percent}%
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                Unmet: {outcomes.unmet} units
-              </div>
-            </div>
-          </div>
-
-          {/* Leftover Inventory Check */}
-          <div className="p-3 bg-slate-900/60 rounded border border-slate-800 flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400 font-sans">Leftover Inventory:</span>
-            <span className="text-slate-200 font-bold">{outcomes.leftover} units</span>
-          </div>
-
-          {/* Cost Equation Transparency */}
-          <div className="p-3 bg-slate-900/30 rounded border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
-            <div className="font-semibold text-slate-300">Documented Cost Accounting Assumptions:</div>
-            <div>• Profit = (Selling Price - Unit Cost) × Fulfilled - Promo Cost - Advertising Cost</div>
-            <div>• Fixed overheads and tax are not subtracted; this reflects direct operating commercial profit.</div>
-          </div>
+          )}
         </div>
-      </div>
-
       {/* Saved Scenarios List */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
