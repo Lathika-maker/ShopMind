@@ -177,13 +177,18 @@ export function simulateScenario(
 export function runStressTest(
   baselineResult: ScenarioSimulationResult,
   input: ScenarioInput,
-  constraints?: BusinessConstraints
+  constraints?: BusinessConstraints,
+  conservativeDropPct = 25,
+  highSurgePct = 35
 ): StressTestResult {
-  const conservative_demand = Math.max(0, baselineResult.demand * 0.75); // -25% shock
-  const high_demand = baselineResult.demand * 1.35; // +35% surge
+  // Percent changes are explicit stress assumptions, not model predictions.
+  const conservativeShock = Math.max(0, Math.min(95, conservativeDropPct));
+  const highShock = Math.max(0, Math.min(300, highSurgePct));
+  const conservative_demand = Math.max(0, baselineResult.demand * (1 - conservativeShock / 100));
+  const high_demand = Math.max(0, baselineResult.demand * (1 + highShock / 100));
 
   const conservative_case = simulateScenario(
-    { ...input, name: `${input.name} (Conservative -25%)` },
+    { ...input, name: `${input.name} (Conservative -${conservativeShock}%)` },
     conservative_demand,
     baselineResult.product_name,
     'user_assumed',
@@ -191,7 +196,7 @@ export function runStressTest(
   );
 
   const high_demand_case = simulateScenario(
-    { ...input, name: `${input.name} (High Surge +35%)` },
+    { ...input, name: `${input.name} (High Surge +${highShock}%)` },
     high_demand,
     baselineResult.product_name,
     'user_assumed',
