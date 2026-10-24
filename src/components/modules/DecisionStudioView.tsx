@@ -48,6 +48,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
   const [name, setName] = useState<string>('Retail Decision Scenario');
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [sellingPrice, setSellingPrice] = useState<number | ''>('');
+  const [sellingPriceSource, setSellingPriceSource] = useState<'mapped' | 'derived' | 'missing'>('missing');
   const [unitCost, setUnitCost] = useState<number | ''>('');
   const [discountPct, setDiscountPct] = useState<number>(0);
   const [promoCost, setPromoCost] = useState<number>(0);
@@ -93,13 +94,27 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
       })
       .then(summary => {
         setProductSummary(summary);
-        setSellingPrice(typeof summary.average_unit_price === 'number' ? summary.average_unit_price : '');
+        if (typeof summary.average_unit_price === 'number' && summary.average_unit_price > 0) {
+          setSellingPrice(summary.average_unit_price);
+          setSellingPriceSource('mapped');
+        } else if (typeof summary.derived_unit_price_from_revenue === 'number' && summary.derived_unit_price_from_revenue > 0) {
+          // Useful scenario seed only. The model API will still use historical demand
+          // unless genuine unit-price variation is available for elasticity estimation.
+          setSellingPrice(summary.derived_unit_price_from_revenue);
+          setSellingPriceSource('derived');
+        } else {
+          setSellingPrice('');
+          setSellingPriceSource('missing');
+        }
         setUnitCost(typeof summary.average_unit_cost === 'number' ? summary.average_unit_cost : '');
         setInventory(typeof summary.average_inventory_on_hand === 'number' ? summary.average_inventory_on_hand : '');
         setDiscountPct(typeof summary.average_discount_pct === 'number' ? summary.average_discount_pct : 0);
         setCompetitorPrice(typeof summary.average_competitor_price === 'number' ? summary.average_competitor_price : '');
         const missing = [];
-        if (summary.average_unit_price === null) missing.push('selling price');
+        if (!(typeof summary.average_unit_price === 'number' && summary.average_unit_price > 0) &&
+            !(typeof summary.derived_unit_price_from_revenue === 'number' && summary.derived_unit_price_from_revenue > 0)) {
+          missing.push('selling price');
+        }
         if (summary.average_unit_cost === null) missing.push('unit cost');
         if (summary.average_inventory_on_hand === null) missing.push('inventory');
         setMissingFields(missing);
@@ -326,8 +341,13 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Selling Price ($)
+                Selling Price ($){sellingPriceSource === 'derived' ? ' — derived' : sellingPriceSource === 'mapped' ? ' — from CSV' : ''}
               </label>
+              {sellingPriceSource === 'derived' && (
+                <p className="text-[10px] text-amber-300 mb-1">
+                  Seeded from total revenue ÷ units sold; not used to estimate price elasticity.
+                </p>
+              )}
               <input
                 type="number"
                 value={sellingPrice}
@@ -482,6 +502,39 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           {errorMsg && (
             <div role="alert" className="p-3 bg-rose-950/30 border border-rose-800 rounded text-xs text-rose-200">
               {errorMsg}
+            </div>
+          )}
+
+          {!previewResult && productSummary && (
+            <div className="p-4 bg-slate-900/70 border border-slate-800 rounded space-y-3">
+              <div className="text-sm font-semibold text-white">Observed demand summary</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] uppercase text-slate-500">Estimated 30-day demand baseline</div>
+                  <div className="text-lg font-mono text-[#E2B774]">
+                    {productSummary.estimated_30_day_demand_baseline === null
+                      ? 'N/A'
+                      : `${Number(productSummary.estimated_30_day_demand_baseline).toLocaleString()} units`}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-slate-500">Rows for selected product</div>
+                  <div className="text-lg font-mono text-white">{productSummary.row_count}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-slate-500">Total recorded units</div>
+                  <div className="text-lg font-mono text-white">{Number(productSummary.total_units).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-slate-500">Observed date span</div>
+                  <div className="text-xs font-mono text-white">{productSummary.date_start || 'N/A'} → {productSummary.date_end || 'N/A'}</div>
+                </div>
+              </div>
+              {missingFields.length > 0 && (
+                <p className="text-[11px] text-slate-400">
+                  This demand summary is based on observed units and dates. To calculate financial and stock-out outcomes, supply {missingFields.filter(field => field !== 'selling price').join(' and ') || 'the missing commercial inputs'} explicitly.
+                </p>
+              )}
             </div>
           )}
 
