@@ -253,13 +253,16 @@ export function parseAndValidateCSV(
   const promoCol = effectiveMapping.promo_active;
   const compCol = effectiveMapping.competitor_price;
   const revenueCol = effectiveMapping.revenue;
-  const derivePriceFromRevenue = priceCol === '__derive_unit_price_from_revenue__' || (!priceCol && !!revenueCol);
 
-  // Record actionable warnings for missing optional columns
-  if (derivePriceFromRevenue) {
-    warnings.push('Average unit price was derived transparently as revenue / units sold because no unit-price column was available. This may differ from listed price if revenue includes discounts, taxes, or adjustments.');
-  } else if (!priceCol) {
-    warnings.push('Price column was not detected or mapped. Econometric price sensitivity and margin calculations will be unavailable.');
+  // Revenue is total sales value, not a unit price. Keep it separate so it cannot
+  // accidentally create a mechanically derived price/quantity relationship.
+  if (!priceCol) {
+    warnings.push('No unit-price column was detected or mapped. Price sensitivity is unavailable. A total revenue column is not treated as unit price.');
+  }
+  if (!revenueCol) {
+    // Revenue is optional; it is not needed for demand-only analysis.
+  } else {
+    warnings.push('Total revenue is preserved as a separate field and is not substituted for unit price.');
   }
   if (!costCol) {
     warnings.push('Unit cost column was not detected or mapped. Financial profit margin metrics will be unavailable.');
@@ -324,24 +327,31 @@ export function parseAndValidateCSV(
       seenDateProdKeys.add(uniqueKey);
     }
 
-    // Price validation: use a supplied unit-price column, or explicitly derive
-    // average realized revenue per unit when the user chose that transparent option.
+    // Price is only populated from an actual unit-price column.
+    // Never infer price as revenue / quantity: that can create a false price-response signal.
     let price = 0;
-    if (derivePriceFromRevenue) {
-      const rawRevenue = revenueCol ? row[revenueCol] : '';
-      const revenueValue = rawRevenue === '' ? NaN : Number(rawRevenue);
-      if (!Number.isFinite(revenueValue) || revenueValue < 0) {
-        errors.push(`Row ${lineNum}: Invalid revenue value "${rawRevenue}". Revenue must be a non-negative number to derive average unit price.`);
-        continue;
-      }
-      price = units > 0 ? revenueValue / units : 0;
-    } else if (priceCol && row[priceCol] !== undefined && row[priceCol] !== '') {
+    if (priceCol && priceCol !== '__derive_unit_price_from_revenue__' && row[priceCol] !== undefined && row[priceCol] !== '') {
       const p = Number(row[priceCol]);
       if (!Number.isFinite(p) || p < 0) {
         errors.push(`Row ${lineNum}: Invalid price value "${row[priceCol]}". Price must be a non-negative number.`);
         continue;
       }
       price = p;
+    } else if (priceCol === '__derive_unit_price_from_revenue__') {
+      errors.push('Unit price cannot be derived from total revenue for price-sensitivity modelling. Map a real unit-price column instead.');
+      continue;
+    }
+
+    // Preserve total revenue separately when supplied.
+    let revenue: number | undefined;
+    if (revenueCol && row[revenueCol] !== undefined && row[revenueCol].trim() !== '') {
+      const rawRevenue = row[revenueCol].trim();
+      const revenueValue = Number(rawRevenue);
+      if (!Number.isFinite(revenueValue) || revenueValue < 0) {
+        errors.push(`Row ${lineNum}: Invalid revenue value "${rawRevenue}". Revenue must be a non-negative number.`);
+        continue;
+      }
+      revenue = Math.round(revenueValue * 100) / 100;
     }
 
     // Cost validation (optional)
@@ -400,6 +410,7 @@ export function parseAndValidateCSV(
       product_name: prodName,
       category,
       units_sold: Math.round(units * 100) / 100,
+      ...(revenue !== undefined ? { revenue } : {}),
       price: Math.round(price * 100) / 100,
       unit_cost: Math.round(unitCost * 100) / 100,
       discount_pct: Math.round(discountPct * 10) / 10,
