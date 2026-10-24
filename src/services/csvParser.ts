@@ -441,10 +441,12 @@ export function parseAndValidateCSV(
       ['promo_active', promoCol],
       ['competitor_price', compCol],
     ];
+    const rowMissingFields: string[] = [];
     mappedOptionalFields.forEach(([field, column]) => {
       if (column && !row[column]?.trim()) {
         optionalFieldComplete[field] = false;
         fieldsWithBlankValues.add(field);
+        rowMissingFields.push(field);
       }
     });
 
@@ -581,6 +583,7 @@ export function parseAndValidateCSV(
       category,
       units_sold: Math.round(units * 100) / 100,
       ...(revenue !== undefined ? { revenue } : {}),
+      ...(rowMissingFields.length > 0 ? { data_missing_fields: rowMissingFields } : {}),
       price: Math.round(price * 100) / 100,
       unit_cost: Math.round(unitCost * 100) / 100,
       discount_pct: Math.round(discountPct * 10) / 10,
@@ -643,6 +646,20 @@ export function parseAndValidateCSV(
     product_items: productItems,
     categories: uniqueCats,
     is_synthetic: false,
+    mapped_fields: {
+      date: Boolean(dateCol),
+      product_id: Boolean(prodIdCol || prodNameCol),
+      product_name: Boolean(prodNameCol || prodIdCol),
+      category: Boolean(catCol),
+      units_sold: true,
+      price: Boolean(priceCol && priceCol !== '__derive_unit_price_from_revenue__'),
+      revenue: Boolean(revenueCol),
+      unit_cost: Boolean(costCol),
+      discount_pct: Boolean(discCol),
+      inventory_on_hand: Boolean(invCol),
+      promo_active: Boolean(promoCol),
+      competitor_price: Boolean(compCol),
+    },
     available_fields: {
       date: Boolean(dateCol),
       product_id: Boolean(prodIdCol || prodNameCol),
