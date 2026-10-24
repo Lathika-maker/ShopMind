@@ -4,6 +4,7 @@
 
 import React, { useState } from 'react';
 import { Upload, X, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
+import { inferColumnMapping, splitCSVLine } from '../../services/csvParser.ts';
 
 interface CSVUploadModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
   const [file, setFile] = useState<File | null>(null);
   const [rawText, setRawText] = useState<string>('');
   const [headers, setHeaders] = useState<string[]>([]);
-  const [previewRows, setPreviewRows] = useState<any[]>([]);
+  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
   const [datasetName, setDatasetName] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -45,68 +46,134 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    if (!selected.name.endsWith('.csv') && selected.type !== 'text/csv') {
-      setErrorMsg('Please select a valid CSV file format (.csv).');
+    const extension = selected.name.split('.').pop()?.toLowerCase();
+    const allowedMimeTypes = [
+      '',
+      'text/csv',
+      'application/csv',
+      'application/vnd.ms-excel',
+      'text/plain',
+      'application/octet-stream',
+    ];
+    if (extension !== 'csv' || !allowedMimeTypes.includes(selected.type)) {
+      clearSelectedFile();
+      setErrorMsg('Please upload a .csv file. Excel .xlsx files are not supported here; open the workbook in Excel or Numbers and export it as CSV.');
       setErrorDetails([]);
+      e.target.value = '';
       return;
     }
 
-    setFile(selected);
-    setDatasetName(selected.name.replace(/\.csv$/i, ''));
+    clearSelectedFile();
     setErrorMsg(null);
     setErrorDetails([]);
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setRawText(text);
-      parsePreview(text);
+      const text = typeof event.target?.result === 'string' ? event.target.result : '';
+      // XLSX files are ZIP containers and begin with the PK signature. Never show binary bytes as text.
+      if (text.startsWith('PK\u0003\u0004') || text.includes('[Content_Types].xml')) {
+        setErrorMsg('This appears to be an Excel .xlsx workbook, not a CSV. Export or Save As → CSV, then upload the .csv file.');
+        setErrorDetails([]);
+        e.target.value = '';
+        return;
+      }
+
+      if (!parsePreview(text)) {
+        e.target.value = '';
+        return;
+      }
+
+      setFile(selected);
+      setDatasetName(selected.name.replace(/\.csv$/i, ''));
+      setRawText(text.replace(/^\uFEFF/, ''));
     };
     reader.onerror = () => {
+      clearSelectedFile();
       setErrorMsg('Failed to read the selected file.');
       setErrorDetails([]);
+      e.target.value = '';
     };
     reader.readAsText(selected);
   };
 
-  const parsePreview = (csvContent: string) => {
-    const lines = csvContent.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length < 2) {
-      setErrorMsg('The CSV file must contain a header line and at least one data row.');
+  const clearSelectedFile = () => {
+    setFile(null);
+    setRawText('');
+    setHeaders([]);
+    setPreviewRows([]);
+    setDatasetName('');
+    setMapping({
+      date: '',
+      product_id: '',
+      product_name: '',
+      category: '',
+      units_sold: '',
+      price: '',
+      unit_cost: '',
+      discount_pct: '',
+      inventory_on_hand: '',
+      competitor_price: '',
+    });
+  };
+
+  const parsePreview = (csvContent: string): boolean => {
+    const normalizedContent = csvContent.replace(/^\uFEFF/, '');
+    if (!normalizedContent.trim()) {
+      setErrorMsg('The selected CSV is empty.');
       setErrorDetails([]);
-      return;
+      clearSelectedFile();
+      return false;
     }
 
-    const headerCols = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+    const lines = normalizedContent.split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (lines.length < 2) {
+      setErrorMsg('The CSV must contain a header row and at least one data row.');
+      setErrorDetails([]);
+      clearSelectedFile();
+      return false;
+    }
+
+    // Use the same quote-aware splitter as the ingestion service, so commas inside
+    // quoted values do not create fake columns in the preview.
+    const headerCols = splitCSVLine(lines[0]).map(h => h.trim());
+    if (headerCols.length === 0 || headerCols.some(h => !h)) {
+      setErrorMsg('The CSV header row contains an empty column name. Please correct the header row.');
+      setErrorDetails([]);
+      clearSelectedFile();
+      return false;
+    }
+    if (new Set(headerCols).size !== headerCols.length) {
+      setErrorMsg('The CSV contains duplicate column names. Rename the duplicate headers and upload again.');
+      setErrorDetails([]);
+      clearSelectedFile();
+      return false;
+    }
+
+    const mappingGuess = inferColumnMapping(headerCols);
     setHeaders(headerCols);
-
-    // Initial best-guess column mapping
-    const newMapping = { ...mapping };
-    headerCols.forEach(h => {
-      const lower = h.toLowerCase();
-      if (!newMapping.date && (lower.includes('date') || lower === 'day' || lower === 'timestamp')) newMapping.date = h;
-      else if (!newMapping.product_id && (lower.includes('product_id') || lower === 'sku' || lower === 'item_id' || lower === 'id')) newMapping.product_id = h;
-      else if (!newMapping.product_name && (lower.includes('product') || lower.includes('item') || lower.includes('name') || lower.includes('title'))) newMapping.product_name = h;
-      else if (!newMapping.category && (lower.includes('cat') || lower.includes('dept'))) newMapping.category = h;
-      else if (!newMapping.units_sold && (lower.includes('unit') || lower.includes('qty') || lower.includes('sold') || lower.includes('sales') || lower.includes('demand'))) newMapping.units_sold = h;
-      else if (!newMapping.price && (lower === 'price' || lower.includes('selling_price') || lower.includes('retail_price') || lower.includes('unit_price'))) newMapping.price = h;
-      else if (!newMapping.unit_cost && (lower.includes('cost') || lower.includes('cogs'))) newMapping.unit_cost = h;
-      else if (!newMapping.discount_pct && lower.includes('disc')) newMapping.discount_pct = h;
-      else if (!newMapping.inventory_on_hand && (lower.includes('inv') || lower.includes('stock'))) newMapping.inventory_on_hand = h;
-      else if (!newMapping.competitor_price && lower.includes('comp')) newMapping.competitor_price = h;
+    setMapping({
+      date: mappingGuess.date || '',
+      product_id: mappingGuess.product_id || '',
+      product_name: mappingGuess.product_name || '',
+      category: mappingGuess.category || '',
+      units_sold: mappingGuess.units_sold || '',
+      price: mappingGuess.price || '',
+      unit_cost: mappingGuess.unit_cost || '',
+      discount_pct: mappingGuess.discount_pct || '',
+      inventory_on_hand: mappingGuess.inventory_on_hand || '',
+      competitor_price: mappingGuess.competitor_price || '',
     });
-    setMapping(newMapping);
 
-    // Preview up to 5 rows
     const rows = lines.slice(1, 6).map(line => {
-      const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+      const values = splitCSVLine(line);
       const rowObj: Record<string, string> = {};
       headerCols.forEach((col, idx) => {
-        rowObj[col] = values[idx] || '';
+        rowObj[col] = values[idx] ?? '';
       });
       return rowObj;
     });
     setPreviewRows(rows);
+    return true;
   };
 
   const handleSubmit = async () => {
@@ -206,7 +273,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                 <span>Select Local File</span>
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,application/csv"
                   onChange={handleFileChange}
                   className="hidden"
                 />
