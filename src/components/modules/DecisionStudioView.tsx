@@ -599,6 +599,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
             </div>
           )}
         </div>
+      </div>
       {/* Saved Scenarios List */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
