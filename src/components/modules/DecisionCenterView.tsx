@@ -113,10 +113,16 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
     // Precise unrounded score with 2 decimal places to resolve unexpected ties
     const score = Math.round(rawScore * 100) / 100;
 
+    const currentConstraintViolations = [
+      ...(!marginOk ? [`Margin ${s.profit_margin_pct}% is below the current ${minMargin}% floor`] : []),
+      ...(!stockoutOk ? [`Stock-out risk ${s.stock_out_risk_percent}% exceeds the current ${maxStockout}% ceiling`] : []),
+    ];
+
     return {
       ...s,
       is_feasible: isFeasible,
       calculatedScore: score,
+      currentConstraintViolations,
     };
   }).sort((a, b) => b.calculatedScore - a.calculatedScore);
 
@@ -263,14 +269,22 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#E2B774] uppercase tracking-wider">
               <Award className="w-4 h-4" />
-              <span>Highest Ranked Feasible Commercial Alternative</span>
+              <span>{topPick.is_feasible ? 'Highest Ranked Feasible Commercial Alternative' : 'Best Available Alternative — Constraints Still Breached'}</span>
             </div>
             <h3 className="text-lg font-bold text-white">
               {topPick.name}
             </h3>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Generates an estimated <span className="font-mono font-bold text-emerald-400">${topPick.estimated_profit.toLocaleString()}</span> in direct operating profit with <span className="font-mono text-white">{topPick.profit_margin_pct}%</span> margin and controlled stock-out risk of <span className="font-mono text-white">{topPick.stock_out_risk_percent}%</span>.
+              Generates an estimated <span className="font-mono font-bold text-emerald-400">${topPick.estimated_profit.toLocaleString()}</span> in direct operating profit with <span className="font-mono text-white">{topPick.profit_margin_pct}%</span> margin and stock-out risk of <span className="font-mono text-white">{topPick.stock_out_risk_percent}%</span>.
+              {topPick.is_feasible
+                ? ' This alternative passes the currently configured margin and stock-out constraints.'
+                : ' No candidate currently satisfies both active constraints. This is the highest-scoring available option, not a constraint-compliant recommendation.'}
             </p>
+            {!topPick.is_feasible && (
+              <ul className="mt-2 list-disc list-inside text-xs text-amber-300 space-y-1">
+                {topPick.currentConstraintViolations.map((violation, index) => <li key={index}>{violation}</li>)}
+              </ul>
+            )}
           </div>
 
           <div className="flex items-center gap-6 shrink-0 font-mono">
@@ -349,7 +363,7 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
           <div>• Stock-out Score: 100 - StockOutRisk% (0% stockout = 100 points).</div>
           <div>• Leftover Score: 100 - (Leftover / Inventory × 100).</div>
           <div>• Score Aggregation: Raw score divided by total weights (w_profit + w_stockout + w_leftover), and rendered with 2-decimal precision.</div>
-          <div>• Infeasible Alternatives: Surcharged with boundary violation flags and an explicit 60% penalty deduction.</div>
+          <div>• Infeasible Alternatives: The profit/stock-out subscore is reduced to 40% and a further 10-point penalty is applied; all violations remain visible.</div>
         </div>
       </div>
     </div>
