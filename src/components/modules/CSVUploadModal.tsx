@@ -38,6 +38,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     discount_pct: '',
     inventory_on_hand: '',
     competitor_price: '',
+    revenue: '',
   });
 
   if (!isOpen) return null;
@@ -115,6 +116,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       discount_pct: '',
       inventory_on_hand: '',
       competitor_price: '',
+      revenue: '',
     });
   };
 
@@ -164,6 +166,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       discount_pct: mappingGuess.discount_pct || '',
       inventory_on_hand: mappingGuess.inventory_on_hand || '',
       competitor_price: mappingGuess.competitor_price || '',
+      revenue: mappingGuess.revenue || '',
     });
 
     const rows = lines.slice(1, 6).map(line => {
@@ -390,7 +393,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       onChange={(e) => setMapping({ ...mapping, price: e.target.value })}
                       className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     >
-                      <option value="">-- None (0) --</option>
+                      <option value="">-- Not provided: price analysis unavailable --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
@@ -404,7 +407,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       onChange={(e) => setMapping({ ...mapping, unit_cost: e.target.value })}
                       className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     >
-                      <option value="">-- None (0) --</option>
+                      <option value="">-- Not provided: cost must be entered for scenarios --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
@@ -418,7 +421,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       onChange={(e) => setMapping({ ...mapping, discount_pct: e.target.value })}
                       className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     >
-                      <option value="">-- None (0%) --</option>
+                      <option value="">-- Not provided --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
@@ -432,9 +435,26 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       onChange={(e) => setMapping({ ...mapping, inventory_on_hand: e.target.value })}
                       className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
                     >
-                      <option value="">-- None --</option>
+                      <option value="">-- Not provided: inventory analysis unavailable --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Revenue (Optional — total sales value)
+                    </label>
+                    <select
+                      value={mapping.revenue}
+                      onChange={(e) => setMapping({ ...mapping, revenue: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="">-- Not provided --</option>
+                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      Total revenue is kept separate from unit price and is never used as a substitute for it.
+                    </p>
                   </div>
                 </div>
               </div>
