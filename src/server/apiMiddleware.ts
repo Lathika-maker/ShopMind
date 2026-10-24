@@ -404,6 +404,9 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/forecasting/train') {
     parseBody(req).then((body) => {
+      if (!activeMetadata || activeRecords.length === 0) {
+        return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before forecasting.' });
+      }
       const { product_id, algorithm = 'linear_regression', train_ratio = 0.8 } = body;
       const targetProd = product_id || activeRecords[0]?.product_id;
       const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
@@ -419,6 +422,9 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
   }
 
   if (req.method === 'GET' && pathname === '/api/regimes') {
+    if (!activeMetadata || activeRecords.length === 0) {
+      return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before demand-regime analysis.' });
+    }
     const targetProd = (parsed.query.product_id as string) || activeRecords[0]?.product_id;
     const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
     if (prodRecords.length < 14) {
@@ -453,8 +459,16 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
   }
 
   if (req.method === 'GET' && pathname === '/api/price-sensitivity') {
+    if (!activeMetadata || activeRecords.length === 0) {
+      return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before price-sensitivity analysis.' });
+    }
     const targetProd = (parsed.query.product_id as string) || activeRecords[0]?.product_id;
     const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
+    if (!prodRecords.some(record => record.price > 0)) {
+      return sendJson(res, 400, {
+        error: 'Price sensitivity is unavailable because the active dataset has no mapped unit-price values. Total revenue is not a substitute for unit price.',
+      });
+    }
     const result = computePriceElasticity(prodRecords);
     return sendJson(res, 200, {
       product_id: targetProd,
@@ -469,20 +483,36 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/scenarios') {
     parseBody(req).then((input: ScenarioInput) => {
-      const catalogProd = PRODUCTS_CATALOG.find(p => p.id === input.product_id);
-      const prodRecords = activeRecords.filter(r => r.product_id === input.product_id);
-      const avgPrice = prodRecords.length > 0 ? prodRecords.reduce((s, r) => s + r.price, 0) / prodRecords.length : input.selling_price;
-      const avgDemand = prodRecords.length > 0 ? Math.max(1, Math.round(prodRecords.reduce((s, r) => s + r.units_sold, 0) / prodRecords.length * 7)) : 50;
-      const prodName = catalogProd?.name || prodRecords[0]?.product_name || input.product_id;
-      const elasticity = catalogProd?.elasticity || (prodRecords.length >= 10 ? computePriceElasticity(prodRecords).elasticity : -1.2);
+      if (!activeMetadata || activeRecords.length === 0) {
+        return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before creating a commercial scenario.' });
+      }
+      if (!input.product_id || !Number.isFinite(input.selling_price) || input.selling_price <= 0) {
+        return sendJson(res, 400, { error: 'Select a product from the active dataset and provide a positive selling price.' });
+      }
+      if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) {
+        return sendJson(res, 400, { error: 'Provide an explicit non-negative unit cost for this scenario.' });
+      }
+      if (!Number.isFinite(input.inventory) || input.inventory < 0) {
+        return sendJson(res, 400, { error: 'Provide an explicit non-negative inventory quantity for this scenario.' });
+      }
 
-      const effectivePrice = input.selling_price * (1 - (input.discount_pct || 0) / 100);
-      const priceRatio = effectivePrice / (avgPrice || input.selling_price || 1);
-      const promoLift = input.is_promo ? 1.3 : 1.0;
-      const estimatedDemand = Math.max(1, Math.round(avgDemand * Math.pow(Math.max(0.1, priceRatio), elasticity) * promoLift));
-      const simulated = simulateScenario(input, estimatedDemand, prodName, 'fitted_model', activeConstraints);
+      const product = getProductBaseline(input.product_id);
+      if (!product) {
+        return sendJson(res, 404, { error: 'The selected product does not exist in the active uploaded dataset.' });
+      }
+
+      const estimate = estimateScenarioDemand(product, input);
+      const simulated = simulateScenario(
+        input,
+        estimate.demand,
+        product.name,
+        estimate.source,
+        activeConstraints
+      );
       savedScenarios.unshift(simulated);
       return sendJson(res, 200, simulated);
+    }).catch((error: any) => {
+      return sendJson(res, 500, { error: `Scenario calculation failed: ${error?.message || 'Unknown error'}` });
     });
     return;
   }
