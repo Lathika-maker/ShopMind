@@ -186,7 +186,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               className="flex-1 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Reset Benchmark Data</span>
+              <span>Clear Active Dataset</span>
             </button>
             <button
               onClick={onOpenUpload}
@@ -205,28 +205,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Platform Architecture & Operational Environment
         </h3>
         <p className="text-xs text-slate-400 mb-4">
-          Verified platform environment and service configuration.
+          Repository architecture and the runtime paths used by SHOPMIND.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
           <div className="p-3 bg-slate-900 rounded border border-slate-800 space-y-1.5">
             <div className="font-semibold text-white font-sans flex items-center gap-2">
               <Server className="w-4 h-4 text-emerald-400" />
-              <span>1. Live Integrated Server (Active)</span>
+              <span>1. Live UI/API Path</span>
             </div>
-            <div className="text-slate-400">• Runtime: Node.js / Express / TypeScript (`server.ts`)</div>
-            <div className="text-slate-400">• Port: 3000 (Vite SPA middleware mounted)</div>
-            <div className="text-slate-400">• Automated Tests: 43 unit tests verified passing (`npm test`)</div>
-            <div className="text-slate-400">• Status: Online & serving live API routes</div>
+            <div className="text-slate-400">• Runtime: React + Vite; API routes in `src/server/apiMiddleware.ts`</div>
+            <div className="text-slate-400">• Express alternative: `server.ts` (port configured by `SERVER_PORT`)</div>
+            <div className="text-slate-400">• Validation: `npm test` and `npm run build` are checked in GitHub Actions</div>
+            <div className="text-slate-400">• Data state: starts empty; successful CSV upload activates the dataset</div>
           </div>
 
           <div className="p-3 bg-slate-900 rounded border border-slate-800 space-y-1.5">
             <div className="font-semibold text-white font-sans flex items-center gap-2">
               <Terminal className="w-4 h-4 text-[#E2B774]" />
-              <span>2. Reference Python Service (`/backend`)</span>
+              <span>2. Separate Python Service (`/backend`)</span>
             </div>
             <div className="text-slate-400">• Framework: FastAPI, Pydantic, SQLAlchemy, Alembic</div>
-            <div className="text-slate-400">• Microservice: Standalone Dockerized Python configuration</div>
+            <div className="text-slate-400">• Integration: separate from the current UI/API path; not assumed to supply live screen results</div>
             <div className="text-slate-400">• Files: `Dockerfile` & `docker-compose.yml` included in repo</div>
             <div className="text-slate-400">• DB: PostgreSQL schema and migration configuration</div>
           </div>
@@ -235,15 +235,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="font-semibold text-white font-sans flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-400" />
-                <span>3. Firebase Cloud Firestore (Active)</span>
+                <span>3. Firebase Connectivity</span>
               </div>
               <span className="text-[11px] font-sans px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/80 font-medium">
-                Provisioned
+                Connection status only
               </span>
             </div>
-            <div className="text-slate-400">• Firebase Project ID: <span className="text-white">metal-pentameter-fc70r</span></div>
-            <div className="text-slate-400">• Firestore Database: <span className="text-white">ai-studio-shopmindfullstac-9d9c95ea-7208-4d89-babe-75d8d5e1dc56</span></div>
-            <div className="text-slate-400">• Rules: Security rules compiled and deployed via DeployRules RPC</div>
+            <div className="text-slate-400">• Purpose: connection health indicator for the current UI</div>
+            <div className="text-slate-400">• Dataset source of truth: active uploaded CSV in the API process</div>
+            <div className="text-slate-400">• Current use: connectivity check only; uploaded data and scenarios are not restored from Firestore</div>
           </div>
         </div>
       </div>
