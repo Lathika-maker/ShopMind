@@ -49,7 +49,7 @@ export function splitCSVLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === delimiter && !inQuotes) {
+    } else if (char === ',' && !inQuotes) {
       result.push(current.trim());
       current = '';
     } else {
@@ -92,6 +92,11 @@ export function detectCSVDelimiter(content: string): ',' | ';' | '\t' | '|' {
   return counts[delimiter] > 0 ? delimiter : ',';
 }
 
+/**
+ * Parse a complete CSV document, respecting escaped quotes, the detected delimiter,
+ * CRLF/LF, and line breaks embedded inside quoted fields.
+ * Throws on an unterminated quoted field so malformed uploads are not misread.
+ */
 export function parseCSVText(content: string): string[][] {
   const input = content.replace(/^\uFEFF/, '');
   const delimiter = detectCSVDelimiter(input);
@@ -113,7 +118,7 @@ export function parseCSVText(content: string): string[][] {
       continue;
     }
 
-    if (char === ',' && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(field.trim());
       field = '';
       continue;
