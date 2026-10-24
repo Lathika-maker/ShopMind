@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Upload, X, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
-import { inferColumnMapping, splitCSVLine } from '../../services/csvParser.ts';
+import { inferColumnMapping, parseCSVText } from '../../services/csvParser.ts';
 
 interface CSVUploadModalProps {
   isOpen: boolean;
@@ -121,26 +121,32 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
   };
 
   const parsePreview = (csvContent: string): boolean => {
-    const normalizedContent = csvContent.replace(/^\uFEFF/, '');
-    if (!normalizedContent.trim()) {
+    if (!csvContent.trim()) {
       setErrorMsg('The selected CSV is empty.');
       setErrorDetails([]);
       clearSelectedFile();
       return false;
     }
 
-    const lines = normalizedContent.split(/\r?\n/).filter(line => line.trim().length > 0);
-    if (lines.length < 2) {
+    let rows: string[][];
+    try {
+      rows = parseCSVText(csvContent);
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'Unable to parse CSV. Check quoted fields and separators.');
+      setErrorDetails([]);
+      clearSelectedFile();
+      return false;
+    }
+
+    if (rows.length < 2) {
       setErrorMsg('The CSV must contain a header row and at least one data row.');
       setErrorDetails([]);
       clearSelectedFile();
       return false;
     }
 
-    // Use the same quote-aware splitter as the ingestion service, so commas inside
-    // quoted values do not create fake columns in the preview.
-    const headerCols = splitCSVLine(lines[0]).map(h => h.trim());
-    if (headerCols.length === 0 || headerCols.some(h => !h)) {
+    const headerCols = rows[0].map(header => header.trim());
+    if (headerCols.length === 0 || headerCols.some(header => !header)) {
       setErrorMsg('The CSV header row contains an empty column name. Please correct the header row.');
       setErrorDetails([]);
       clearSelectedFile();
@@ -169,15 +175,14 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       revenue: mappingGuess.revenue || '',
     });
 
-    const rows = lines.slice(1, 6).map(line => {
-      const values = splitCSVLine(line);
+    const previewRows = rows.slice(1, 6).map(values => {
       const rowObj: Record<string, string> = {};
-      headerCols.forEach((col, idx) => {
-        rowObj[col] = values[idx] ?? '';
+      headerCols.forEach((column, idx) => {
+        rowObj[column] = values[idx] ?? '';
       });
       return rowObj;
     });
-    setPreviewRows(rows);
+    setPreviewRows(previewRows);
     return true;
   };
 
