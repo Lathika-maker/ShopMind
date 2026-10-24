@@ -168,6 +168,7 @@ export default function App() {
           <main className="flex-1 overflow-y-auto p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
             {activeTab === 'overview' && (
               <OverviewView
+                key={metadata?.id ?? 'no-dataset'}
                 metadata={metadata}
                 quality={quality}
                 scenarios={scenarios}
@@ -178,6 +179,7 @@ export default function App() {
 
             {activeTab === 'explorer' && (
               <DataExplorerView
+                key={metadata?.id ?? 'no-dataset'}
                 metadata={metadata}
                 onOpenUpload={() => setIsUploadOpen(true)}
                 onResetData={handleResetData}
@@ -185,23 +187,24 @@ export default function App() {
             )}
 
             {activeTab === 'quality' && (
-              <DataQualityView metadata={metadata} quality={quality} />
+              <DataQualityView key={metadata?.id ?? 'no-dataset'} metadata={metadata} quality={quality} />
             )}
 
             {activeTab === 'forecasting' && (
-              <ForecastingView metadata={metadata} />
+              <ForecastingView key={metadata?.id ?? 'no-dataset'} metadata={metadata} />
             )}
 
             {activeTab === 'regimes' && (
-              <RegimesView metadata={metadata} />
+              <RegimesView key={metadata?.id ?? 'no-dataset'} metadata={metadata} />
             )}
 
             {activeTab === 'price_sensitivity' && (
-              <PriceSensitivityView metadata={metadata} />
+              <PriceSensitivityView key={metadata?.id ?? 'no-dataset'} metadata={metadata} />
             )}
 
             {activeTab === 'decision_studio' && (
               <DecisionStudioView
+                key={metadata?.id ?? 'no-dataset'}
                 metadata={metadata}
                 scenarios={scenarios}
                 constraints={constraints}
@@ -212,6 +215,7 @@ export default function App() {
 
             {activeTab === 'stress_testing' && (
               <StressTestingView
+                key={metadata?.id ?? 'no-dataset'}
                 scenarios={scenarios}
                 onNavigate={setActiveTab}
               />
@@ -219,6 +223,7 @@ export default function App() {
 
             {activeTab === 'comparison' && (
               <ScenarioComparisonView
+                key={metadata?.id ?? 'no-dataset'}
                 scenarios={scenarios}
                 onNavigate={setActiveTab}
               />
@@ -226,6 +231,7 @@ export default function App() {
 
             {activeTab === 'decision_center' && (
               <DecisionCenterView
+                key={metadata?.id ?? 'no-dataset'}
                 scenarios={scenarios}
                 constraints={constraints}
                 onUpdateConstraints={handleUpdateConstraints}
@@ -234,7 +240,7 @@ export default function App() {
             )}
 
             {activeTab === 'insights' && (
-              <InsightsView onNavigate={setActiveTab} />
+              <InsightsView key={metadata?.id ?? 'no-dataset'} onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'settings' && (
