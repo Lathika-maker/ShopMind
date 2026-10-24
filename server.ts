@@ -69,7 +69,8 @@ let savedScenarios: ScenarioSimulationResult[] = [];
 // Helper: Validate Dataset Quality
 function computeQualityReport(
   records: DataRecord[],
-  availableFields?: Record<string, boolean>
+  availableFields?: Record<string, boolean>,
+  mappedFields?: Record<string, boolean>
 ): DataQualityReport {
   const issues: ValidationIssue[] = [];
   const missingCols: Record<string, number> = {};
@@ -93,6 +94,12 @@ function computeQualityReport(
 
     if (!record.date) missingCols.date = (missingCols.date || 0) + 1;
     if (!record.product_id) missingCols.product_id = (missingCols.product_id || 0) + 1;
+
+    // A mapped optional field with a blank cell is recorded per row by the CSV
+    // parser. Count it as missing for data quality instead of pretending it was zero.
+    (record.data_missing_fields || []).forEach(field => {
+      missingCols[field] = (missingCols[field] || 0) + 1;
+    });
 
     if (!Number.isFinite(record.units_sold)) {
       missingCols.units_sold = (missingCols.units_sold || 0) + 1;
@@ -170,13 +177,22 @@ function computeQualityReport(
     ['competitor_price', 'competitor-price'],
   ];
   optionalFields.forEach(([field, label]) => {
-    if (availableFields?.[field] === false) {
+    if (mappedFields?.[field] === false) {
       issues.push({
         type: 'missing_value',
         column: field,
         severity: 'warning',
         count: records.length,
         description: 'No ' + label + ' column was mapped. Analyses requiring this field remain unavailable.',
+      });
+    } else if (mappedFields?.[field] === true && availableFields?.[field] === false) {
+      const missingCount = records.filter(record => record.data_missing_fields?.includes(field)).length;
+      issues.push({
+        type: 'missing_value',
+        column: field,
+        severity: 'warning',
+        count: missingCount || records.length,
+        description: 'The mapped ' + label + ' column contains blank values. This field is unavailable for dataset-level analysis until the missing cells are handled.',
       });
     }
   });
@@ -199,8 +215,9 @@ function computeQualityReport(
     };
   });
 
-  const checkedFields = ['date', 'product_id', 'units_sold', 'revenue', 'price', 'unit_cost', 'discount_pct', 'inventory_on_hand']
-    .filter(field => availableFields?.[field] !== false);
+  const checkedFields = ['date', 'product_id', 'units_sold']
+    .concat(['revenue', 'price', 'unit_cost', 'discount_pct', 'inventory_on_hand']
+      .filter(field => mappedFields?.[field] === true));
   const totalPossibleChecks = records.length * checkedFields.length;
   const totalErrors = Object.values(missingCols).reduce((sum, count) => sum + count, 0) +
     Object.values(negativeCols).reduce((sum, count) => sum + count, 0) + duplicateCount;
@@ -257,7 +274,7 @@ app.get('/api/dataset', (_req: Request, res: Response) => {
   }
   res.json({
     metadata: activeMetadata,
-    quality: computeQualityReport(activeRecords, activeMetadata?.available_fields),
+    quality: computeQualityReport(activeRecords, activeMetadata?.available_fields, activeMetadata?.mapped_fields),
     has_dataset: true,
   });
 });
@@ -433,7 +450,7 @@ app.post('/api/dataset/upload', (req: Request, res: Response) => {
     res.json({
       message: 'Dataset uploaded, validated, and ingested successfully.',
       metadata: activeMetadata,
-      quality: computeQualityReport(activeRecords, activeMetadata?.available_fields),
+      quality: computeQualityReport(activeRecords, activeMetadata?.available_fields, activeMetadata?.mapped_fields),
       warnings: parseResult.warnings,
     });
   } catch (err: any) {
