@@ -32,7 +32,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('landing');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
-  const [firebaseConnected, setFirebaseConnected] = useState<boolean>(true);
+  const [firebaseConnected, setFirebaseConnected] = useState<boolean>(false);
 
   // Core Application Data State (Defaults to null - uploaded CSV is the ONLY default runtime data source)
   const [metadata, setMetadata] = useState<DatasetMetadata | null>(null);
