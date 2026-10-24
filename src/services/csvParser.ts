@@ -29,6 +29,7 @@ export interface ColumnMappingConfig {
   inventory_on_hand?: string;
   promo_active?: string;
   competitor_price?: string;
+  revenue?: string;
 }
 
 /**
@@ -73,8 +74,10 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
       mapping.product_id = raw;
     } else if (!mapping.product_name && (clean.includes('title') || clean.includes('product_name') || clean.includes('item_name') || clean.includes('description') || clean === 'product' || clean === 'item' || clean.includes('name'))) {
       mapping.product_name = raw;
-    } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group'))) {
+    } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group') || clean.includes('region') || clean.includes('location') || clean.includes('store'))) {
       mapping.category = raw;
+    } else if (!mapping.revenue && (clean === 'revenue' || clean.includes('revenue') || clean.includes('sales_value') || clean.includes('gross_sales') || clean.includes('net_sales') || clean.includes('total_sales') || clean.includes('turnover'))) {
+      mapping.revenue = raw;
     } else if (!mapping.units_sold && (clean.includes('units') || clean.includes('sold') || clean.includes('demand') || clean.includes('sales') || clean.includes('qty') || clean.includes('quantity') || clean.includes('volume'))) {
       mapping.units_sold = raw;
     } else if (!mapping.unit_cost && (clean.includes('cost') || clean.includes('cogs'))) {
@@ -211,6 +214,7 @@ export function parseAndValidateCSV(
     inventory_on_hand: resolveField(userMapping?.inventory_on_hand, inferred.inventory_on_hand),
     promo_active: resolveField(userMapping?.promo_active, inferred.promo_active),
     competitor_price: resolveField(userMapping?.competitor_price, inferred.competitor_price),
+    revenue: resolveField(userMapping?.revenue, inferred.revenue),
   };
 
   // Check required fields: Date and Units Sold/Demand are strictly required
@@ -248,9 +252,13 @@ export function parseAndValidateCSV(
   const invCol = effectiveMapping.inventory_on_hand;
   const promoCol = effectiveMapping.promo_active;
   const compCol = effectiveMapping.competitor_price;
+  const revenueCol = effectiveMapping.revenue;
+  const derivePriceFromRevenue = priceCol === '__derive_unit_price_from_revenue__' || (!priceCol && !!revenueCol);
 
   // Record actionable warnings for missing optional columns
-  if (!priceCol) {
+  if (derivePriceFromRevenue) {
+    warnings.push('Average unit price was derived transparently as revenue / units sold because no unit-price column was available. This may differ from listed price if revenue includes discounts, taxes, or adjustments.');
+  } else if (!priceCol) {
     warnings.push('Price column was not detected or mapped. Econometric price sensitivity and margin calculations will be unavailable.');
   }
   if (!costCol) {
@@ -316,11 +324,20 @@ export function parseAndValidateCSV(
       seenDateProdKeys.add(uniqueKey);
     }
 
-    // Price validation (optional)
+    // Price validation: use a supplied unit-price column, or explicitly derive
+    // average realized revenue per unit when the user chose that transparent option.
     let price = 0;
-    if (priceCol && row[priceCol] !== undefined && row[priceCol] !== '') {
+    if (derivePriceFromRevenue) {
+      const rawRevenue = revenueCol ? row[revenueCol] : '';
+      const revenueValue = rawRevenue === '' ? NaN : Number(rawRevenue);
+      if (!Number.isFinite(revenueValue) || revenueValue < 0) {
+        errors.push(`Row ${lineNum}: Invalid revenue value "${rawRevenue}". Revenue must be a non-negative number to derive average unit price.`);
+        continue;
+      }
+      price = units > 0 ? revenueValue / units : 0;
+    } else if (priceCol && row[priceCol] !== undefined && row[priceCol] !== '') {
       const p = Number(row[priceCol]);
-      if (isNaN(p) || p < 0) {
+      if (!Number.isFinite(p) || p < 0) {
         errors.push(`Row ${lineNum}: Invalid price value "${row[priceCol]}". Price must be a non-negative number.`);
         continue;
       }
