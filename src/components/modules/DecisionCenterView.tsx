@@ -91,7 +91,10 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
   const rankedScenarios = [...scenarios].map(s => {
     const marginOk = s.profit_margin_pct >= minMargin;
     const stockoutOk = s.stock_out_risk_percent <= maxStockout;
-    const isFeasible = marginOk && stockoutOk;
+    const priceFloorOk = constraints.min_price_floor <= 0 || s.effective_price >= constraints.min_price_floor;
+    const priceCeilingOk = constraints.max_price_ceiling <= 0 || s.effective_price <= constraints.max_price_ceiling;
+    const inventoryCoverageOk = constraints.min_inventory_coverage_units <= 0 || s.inventory >= constraints.min_inventory_coverage_units;
+    const isFeasible = marginOk && stockoutOk && priceFloorOk && priceCeilingOk && inventoryCoverageOk;
 
     // Linear profit normalization: 0% to 100% margin scale (prevents collapsing ties at >= 50%)
     const normalizedProfit = Math.max(0, Math.min(100, s.profit_margin_pct));
@@ -116,6 +119,9 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
     const currentConstraintViolations = [
       ...(!marginOk ? [`Margin ${s.profit_margin_pct}% is below the current ${minMargin}% floor`] : []),
       ...(!stockoutOk ? [`Stock-out risk ${s.stock_out_risk_percent}% exceeds the current ${maxStockout}% ceiling`] : []),
+      ...(!priceFloorOk ? [`Effective price ${s.effective_price} is below the configured floor of ${constraints.min_price_floor}`] : []),
+      ...(!priceCeilingOk ? [`Effective price ${s.effective_price} is above the configured ceiling of ${constraints.max_price_ceiling}`] : []),
+      ...(!inventoryCoverageOk ? [`Inventory ${s.inventory} units is below minimum coverage of ${constraints.min_inventory_coverage_units} units`] : []),
     ];
 
     return {
@@ -277,7 +283,7 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
               Generates an estimated <span className="font-mono font-bold text-emerald-400">${topPick.estimated_profit.toLocaleString()}</span> in direct operating profit with <span className="font-mono text-white">{topPick.profit_margin_pct}%</span> margin and stock-out risk of <span className="font-mono text-white">{topPick.stock_out_risk_percent}%</span>.
               {topPick.is_feasible
-                ? ' This alternative passes the currently configured margin and stock-out constraints.'
+                ? ' This alternative passes the currently configured margin, stock-out, price, and inventory constraints.'
                 : ' No candidate currently satisfies both active constraints. This is the highest-scoring available option, not a constraint-compliant recommendation.'}
             </p>
             {!topPick.is_feasible && (
