@@ -18,6 +18,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { computeDecisionOutcomes } from '../../services/calculations.ts';
+import { formatCurrency } from '../../services/formatting.ts';
 
 interface LandingViewProps {
   onEnterWorkspace: (targetTab?: string) => void;
@@ -111,10 +112,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-800/80">
                 <div>
                   <div className="text-[10px] uppercase font-semibold text-[#E2B774] tracking-wider">
-                    Interactive Mechanism Demo
+                    Illustrative Mechanism Demo
                   </div>
                   <div className="text-sm font-bold text-white">
-                    Live Decision Simulator
+                    Example Decision Simulator
                   </div>
                 </div>
                 <div className="text-[11px] font-mono text-emerald-400">
@@ -122,12 +123,16 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 </div>
               </div>
 
+              <p className="text-[10px] text-slate-500 mb-3">
+                Example inputs only — this interactive demonstration is not connected to an uploaded dataset. Currency is intentionally unspecified here.
+              </p>
+
               {/* Sliders */}
               <div className="space-y-4 text-xs">
                 <div>
                   <div className="flex justify-between text-slate-400 mb-1">
-                    <span>Retail Selling Price</span>
-                    <span className="font-mono text-white font-semibold">${heroPrice}</span>
+                    <span>Retail Selling Price (amount units)</span>
+                    <span className="font-mono text-white font-semibold">{formatCurrency(heroPrice, 'UNSPECIFIED')}</span>
                   </div>
                   <input
                     type="range"
@@ -142,8 +147,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
                 <div>
                   <div className="flex justify-between text-slate-400 mb-1">
-                    <span>Unit Cost (COGS)</span>
-                    <span className="font-mono text-white font-semibold">${heroCost}</span>
+                    <span>Unit Cost (COGS · amount units)</span>
+                    <span className="font-mono text-white font-semibold">{formatCurrency(heroCost, 'UNSPECIFIED')}</span>
                   </div>
                   <input
                     type="range"
@@ -206,7 +211,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <div className="p-2.5 bg-slate-900/80 rounded border border-slate-800">
                   <div className="text-[10px] text-slate-400 uppercase font-medium">Estimated Profit</div>
                   <div className="text-base font-bold text-[#E2B774] font-mono tabular-nums">
-                    ${heroSimulation.estimated_profit.toLocaleString()}
+                    {formatCurrency(heroSimulation.estimated_profit, 'UNSPECIFIED')}
                   </div>
                   <div className="text-[10px] text-slate-500 font-mono">
                     (P - C)*F - Promo - Ad
