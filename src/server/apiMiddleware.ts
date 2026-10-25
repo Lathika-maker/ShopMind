@@ -6,6 +6,7 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { parse as parseUrl } from 'url';
 import { convertRecordsToCSV } from '../data/syntheticDemo.ts';
+import { formatCurrency, currencyContext } from '../services/formatting.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -952,7 +953,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         category: 'decision_opportunity',
         title: `Commercial Feasibility Confirmed: ${topScen.name}`,
         observed: `All ${savedScenarios.length} active scenarios satisfy hard margin floors (≥${activeConstraints.min_profit_margin_pct}%) and risk bounds.`,
-        supporting_data: `Top-ranked candidate delivers $${topScen.estimated_profit.toLocaleString()} operating profit with ${topScen.profit_margin_pct}% margin and ${topScen.stock_out_risk_percent}% stock-out risk.`,
+        supporting_data: `Top-ranked candidate delivers ${formatCurrency(topScen.estimated_profit, activeMetadata?.currency_code)} operating profit with ${topScen.profit_margin_pct}% margin and ${topScen.stock_out_risk_percent}% stock-out risk. ${currencyContext(activeMetadata?.currency_code)}`,
         why_it_matters: 'Commercial portfolio maintains sound margin protection without unhedged inventory shortages.',
         possible_action: 'Run Stress Testing module to verify downside resilience under an extreme -25% demand contraction shock.',
         uncertainty_limitations: 'Dependent on supplier cost stability and absence of aggressive competitor price wars.',
