@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { KPICard } from '../ui/KPICard.tsx';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 import { DatasetMetadata, DataQualityReport, ScenarioSimulationResult } from '../../types/retail.ts';
 import {
   ResponsiveContainer,
@@ -149,8 +150,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         />
         <KPICard
           label="Average Unit Price"
-          value={avgSellingPrice === 'N/A' ? 'N/A' : `${avgSellingPrice}`}
-          subtext={hasUnitPrice ? 'Across mapped observations' : 'No unit-price column mapped'}
+          value={avgSellingPrice === 'N/A' ? 'N/A' : formatCurrency(priceStat?.mean, metadata.currency_code)}
+          subtext={hasUnitPrice ? `Across mapped observations · ${currencyLabel(metadata.currency_code)}` : 'No unit-price column mapped'}
           contextNote={hasUnitPrice ? 'From uploaded data' : 'Price analysis unavailable'}
           trend={{ value: hasUnitPrice ? 'Mapped' : 'Not provided', neutral: true }}
         />
@@ -247,6 +248,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <div className="text-sm font-bold text-white mb-2 truncate">
               {metadata.name}
             </div>
+            <p className="text-[10px] text-slate-500 mb-2">{currencyContext(metadata.currency_code)}</p>
 
             <div className="space-y-2 text-xs text-slate-300 py-2 border-y border-slate-800 font-mono">
               <div className="flex justify-between">
@@ -266,6 +268,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 <span className="text-[#E2B774]">
                   {metadata.is_synthetic ? 'Test fixture' : 'Uploaded CSV'}
                 </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-400 font-sans">Currency</span>
+                <span className="text-right">{currencyLabel(metadata.currency_code)}</span>
               </div>
               {(metadata.excluded_negative_unit_rows || 0) > 0 && (
                 <div className="flex justify-between gap-4">
@@ -303,7 +309,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <>
                 <h4 className="text-sm font-bold text-white mb-1.5">{latestScenario.name}</h4>
                 <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                  Demand source: {latestScenario.demand_source.replace('_', ' ')}. Estimated revenue: ${latestScenario.revenue.toLocaleString()}, estimated profit: ${latestScenario.estimated_profit.toLocaleString()}, stockout exposure: {latestScenario.stock_out_risk_percent}%.
+                  Demand source: {latestScenario.demand_source.replace('_', ' ')}. Estimated revenue: {formatCurrency(latestScenario.revenue, metadata.currency_code)}, estimated profit: {formatCurrency(latestScenario.estimated_profit, metadata.currency_code)}, stockout exposure: {latestScenario.stock_out_risk_percent}%.
                 </p>
               </>
             ) : (
