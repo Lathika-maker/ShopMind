@@ -70,13 +70,21 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
     }
   }, [productOptions, selectedProduct]);
 
-  const runTraining = async () => {
-    setIsLoading(true);
+  const runTraining = async (signal?: AbortSignal) => {
     setErrorMsg(null);
+    setForecastResult(null);
+    if (!selectedProduct) {
+      setIsLoading(false);
+      setErrorMsg('Select a product from the active dataset.');
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const res = await fetch('/api/forecasting/train', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           product_id: selectedProduct,
           algorithm,
@@ -84,22 +92,23 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Training failed.');
-      }
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Training failed.');
       setForecastResult(data);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to train forecasting model.');
+      if (err.name !== 'AbortError') {
+        setForecastResult(null);
+        setErrorMsg(err.message || 'Failed to train forecasting model.');
+      }
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    runTraining();
+    const controller = new AbortController();
+    runTraining(controller.signal);
+    return () => controller.abort();
   }, [selectedProduct, algorithm, trainRatio]);
 
   // Downsample predictions for clear time-series visualization (every 3rd day)
