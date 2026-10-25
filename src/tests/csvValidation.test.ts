@@ -617,4 +617,61 @@ console.log('\n--- 13. Testing daily aggregation for forecasting and regime anal
   console.log('  ✓ Transaction volume is aggregated per product-day and unavailable features are excluded.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (13/13 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 14: Elasticity controls and full constraint feasibility
+// =========================================================================
+console.log('\n--- 14. Testing evidence-supported elasticity controls and constraints ---');
+
+{
+  const makePriceCSV = (withPromo: boolean) => {
+    const header = withPromo
+      ? 'date,product_id,units_sold,price,promo_active'
+      : 'date,product_id,units_sold,price';
+    const rows = [header];
+    for (let i = 0; i < 18; i++) {
+      const date = new Date(Date.UTC(2025, 0, i + 1)).toISOString().slice(0, 10);
+      const units = 40 - i + (i % 3);
+      const price = 10 + (i % 4);
+      rows.push(withPromo
+        ? `${date},SKU-ELASTIC,${units},${price},${i % 2}`
+        : `${date},SKU-ELASTIC,${units},${price}`);
+    }
+    return rows.join('\n');
+  };
+
+  const withPromo = parseAndValidateCSV(makePriceCSV(true), undefined, 'Price and Promo');
+  assert(withPromo.success === true, 'Dataset with price and promo flag parses');
+  const controlled = computePriceElasticity(withPromo.records!, withPromo.metadata!.available_fields);
+  assert(controlled.sufficiency !== 'insufficient', 'Sufficient price observations produce an estimate');
+  assert(controlled.confounders_controlled.some(label => label.includes('Mapped promotional')), 'Mapped promo flag is identified as a control');
+
+  const noPromo = parseAndValidateCSV(makePriceCSV(false), undefined, 'Price Only');
+  assert(noPromo.success === true, 'Dataset without promo flag parses');
+  const uncontrolled = computePriceElasticity(noPromo.records!, noPromo.metadata!.available_fields);
+  assert(!uncontrolled.confounders_controlled.some(label => label.toLowerCase().includes('promo')), 'Absent promo field is not reported as a control');
+  assert(uncontrolled.confounders_controlled.some(label => label.toLowerCase().includes('weekend')), 'Weekend control is derived from observed dates');
+
+  const constrained = simulateScenario({
+    name: 'Inventory Floor Test',
+    product_id: 'SKU-FLOOR',
+    selling_price: 20,
+    unit_cost: 5,
+    discount_pct: 0,
+    promotion_cost: 0,
+    advertising_cost: 0,
+    inventory: 30,
+  }, 10, 'Inventory Floor Test', 'historical_average', {
+    min_profit_margin_pct: 10,
+    max_stock_out_risk_pct: 20,
+    min_inventory_coverage_units: 50,
+    min_price_floor: 15,
+    max_price_ceiling: 100,
+    weights: { profit_weight: 0.5, stockout_weight: 0.3, leftover_weight: 0.2 },
+  });
+  assert(!constrained.is_feasible, 'Scenario below minimum inventory coverage is infeasible');
+  assert(constrained.violated_constraints.some(v => v.includes('minimum coverage')), 'Inventory coverage violation is explained');
+
+  console.log('  ✓ Elasticity controls match available fields and inventory constraints are enforced.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (14/14 TEST SUITES)\n=============================================================\n');
