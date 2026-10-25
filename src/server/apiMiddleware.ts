@@ -186,7 +186,14 @@ function computeQualityReport(
   };
 
   records.forEach(record => {
-    const key = String(record.product_id) + '_' + String(record.date);
+    // Duplicate quality counts require a repeated full record; same SKU/date alone
+    // is normal for transaction-level POS data.
+    const key = JSON.stringify([
+      record.date, record.product_id, record.product_name, record.category,
+      record.units_sold, record.revenue ?? null, record.price, record.unit_cost,
+      record.discount_pct, record.promo_active, record.inventory_on_hand,
+      record.competitor_price, [...(record.data_missing_fields || [])].sort(),
+    ]);
     if (seenKeys.has(key)) duplicateCount++;
     else seenKeys.add(key);
 
@@ -253,10 +260,10 @@ function computeQualityReport(
   if (duplicateCount > 0) {
     issues.push({
       type: 'duplicate_record',
-      column: 'product_id + date',
+      column: 'exact record fields',
       severity: 'warning',
       count: duplicateCount,
-      description: 'Detected ' + duplicateCount + ' duplicate records sharing identical product ID and date.',
+      description: 'Detected ' + duplicateCount + ' exact repeated records across the same business fields. Multiple transactions for a SKU on the same date are not automatically duplicates.',
     });
   }
 
