@@ -156,6 +156,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
       {stressResult && (
         <>
           <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5 space-y-4">
+            <div className="text-[11px] text-slate-500">{currencyContext(metadata?.currency_code)}</div>
             <div>
               <h3 className="text-sm font-semibold text-white">Stress Assumptions</h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -204,7 +205,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KPICard
               label="Max Profit Downside Exposure"
-              value={`-$${stressResult.max_profit_loss.toLocaleString()}`}
+              value={`-${formatCurrency(stressResult.max_profit_loss, metadata?.currency_code)}`}
               subtext={`Under -${conservativeDropPct}% demand contraction`}
               contextNote="Direct margin loss"
               trend={{ value: 'Downside Risk', isPositive: false }}
@@ -252,7 +253,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                     stroke="#E2B774"
                     fontSize={11}
                     tickLine={false}
-                    tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                    tickFormatter={(v) => formatCurrency(Number(v), metadata?.currency_code)}
                   />
                   <YAxis
                     yAxisId="units"
@@ -270,7 +271,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                       borderRadius: '4px',
                     }}
                     formatter={(val: any, name: any) => [
-                      name.includes('Profit') ? `$${Number(val).toLocaleString()}` : `${val} units`,
+                      name.includes('Profit') ? formatCurrency(Number(val), metadata?.currency_code) : `${val} units`,
                       name,
                     ]}
                   />
@@ -278,7 +279,7 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                   <Bar
                     yAxisId="profit"
                     dataKey="profit"
-                    name="Estimated Profit ($)"
+                    name={`Estimated Profit (${currencyLabel(metadata?.currency_code)})`}
                     fill="#E2B774"
                     radius={[2, 2, 0, 0]}
                   />
@@ -319,8 +320,8 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.demand}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.inventory}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.fulfilled}</td>
-                    <td className="py-2.5 px-4 text-right">${stressResult.conservative_case.revenue.toLocaleString()}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-200">${stressResult.conservative_case.estimated_profit.toLocaleString()}</td>
+                    <td className="py-2.5 px-4 text-right">{formatCurrency(stressResult.conservative_case.revenue, metadata?.currency_code)}</td>
+                    <td className="py-2.5 px-4 text-right text-slate-200">{formatCurrency(stressResult.conservative_case.estimated_profit, metadata?.currency_code)}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.conservative_case.stock_out_risk_percent}%</td>
                     <td className="py-2.5 px-4 text-right text-amber-400 font-bold">{stressResult.conservative_case.leftover}</td>
                   </tr>
@@ -329,8 +330,8 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                     <td className="py-2.5 px-4 text-right">{stressResult.baseline.demand}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.baseline.inventory}</td>
                     <td className="py-2.5 px-4 text-right font-bold text-white">{stressResult.baseline.fulfilled}</td>
-                    <td className="py-2.5 px-4 text-right">${stressResult.baseline.revenue.toLocaleString()}</td>
-                    <td className="py-2.5 px-4 text-right font-bold text-[#E2B774]">${stressResult.baseline.estimated_profit.toLocaleString()}</td>
+                    <td className="py-2.5 px-4 text-right">{formatCurrency(stressResult.baseline.revenue, metadata?.currency_code)}</td>
+                    <td className="py-2.5 px-4 text-right font-bold text-[#E2B774]">{formatCurrency(stressResult.baseline.estimated_profit, metadata?.currency_code)}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.baseline.stock_out_risk_percent}%</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.baseline.leftover}</td>
                   </tr>
@@ -339,8 +340,8 @@ export const StressTestingView: React.FC<StressTestingViewProps> = ({
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.demand}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.inventory}</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.fulfilled}</td>
-                    <td className="py-2.5 px-4 text-right">${stressResult.high_demand_case.revenue.toLocaleString()}</td>
-                    <td className="py-2.5 px-4 text-right text-emerald-400 font-bold">${stressResult.high_demand_case.estimated_profit.toLocaleString()}</td>
+                    <td className="py-2.5 px-4 text-right">{formatCurrency(stressResult.high_demand_case.revenue, metadata?.currency_code)}</td>
+                    <td className="py-2.5 px-4 text-right text-emerald-400 font-bold">{formatCurrency(stressResult.high_demand_case.estimated_profit, metadata?.currency_code)}</td>
                     <td className="py-2.5 px-4 text-right text-amber-400 font-bold">{stressResult.high_demand_case.stock_out_risk_percent}%</td>
                     <td className="py-2.5 px-4 text-right">{stressResult.high_demand_case.leftover}</td>
                   </tr>
