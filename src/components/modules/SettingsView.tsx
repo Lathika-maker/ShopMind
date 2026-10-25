@@ -140,6 +140,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
               Note: To adjust multi-criteria decision weights (Profit vs. Stockout vs. Leftover), open the <span className="text-[#E2B774] font-medium">Decision Center</span> module.
             </div>
+            <div className="text-[10px] text-amber-300/80">
+              Price floors and ceilings are numeric assumptions, not converted amounts. Recheck them if you switch to a dataset with a different currency.
+            </div>
           </div>
         </div>
 
