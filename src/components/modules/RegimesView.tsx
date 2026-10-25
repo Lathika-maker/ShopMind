@@ -147,8 +147,16 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
           <div>
             <div className="font-semibold text-white">Documented Detection Methodology</div>
             <div className="text-slate-400 mt-0.5">
-              {regimeData?.threshold_used || '14-day rolling window Z-Score (High: z > +0.95, Low: z < -0.95)'}
+              {regimeData?.threshold_used || '14-observation rolling window on recorded product-days (gaps are not imputed); High: z > +0.95, Low: z < -0.95'}
             </div>
+            {regimeData?.date_coverage && (
+              <div className="text-[10px] text-slate-500 mt-1">
+                {regimeData.date_coverage.observed_product_days} recorded product-days across {regimeData.date_coverage.calendar_span_days} calendar dates
+                {regimeData.date_coverage.unobserved_calendar_days > 0
+                  ? `; ${regimeData.date_coverage.unobserved_calendar_days} dates have no recorded rows (not imputed)`
+                  : '; no calendar-date gaps in the observed range'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -182,17 +190,17 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
                 <span className={`text-xs font-mono font-bold ${
                   isHigh ? 'text-emerald-400' : isLow ? 'text-amber-400' : 'text-slate-300'
                 }`}>
-                  {item.percentage}% of Days
+                  {item.percentage}% of Observed Product-Days
                 </span>
               </div>
 
               <div className="text-2xl font-bold font-mono text-white tabular-nums">
-                {item.average_demand} <span className="text-xs font-sans text-slate-400 font-normal">avg units/day</span>
+                {item.average_demand} <span className="text-xs font-sans text-slate-400 font-normal">avg units / observed product-day</span>
               </div>
 
               <div className="text-xs text-slate-400 flex justify-between pt-2 border-t border-slate-800/80">
                 <span>Avg Realized Price:</span>
-                <span className="font-mono text-white">${item.average_price.toFixed(2)}</span>
+                <span className="font-mono text-white">{metadata.available_fields?.price === false ? 'N/A — no mapped price column' : `${item.average_price.toFixed(2)}`}</span>
               </div>
             </div>
           );
