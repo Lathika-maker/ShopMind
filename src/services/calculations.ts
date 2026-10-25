@@ -757,7 +757,8 @@ export function detectDemandRegimes(
 // ==========================================
 
 export function computePriceElasticity(
-  records: DataRecord[]
+  records: DataRecord[],
+  availableFields?: Record<string, boolean>
 ): {
   elasticity: number;
   elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic';
@@ -808,20 +809,27 @@ export function computePriceElasticity(
     };
   }
 
-  // OLS Log-Log model: ln(Q) = beta_0 + beta_1 * ln(P) + beta_2 * Promo + beta_3 * Weekend
-  const X: number[][] = valid.map(r => [
+  // Log-log OLS uses only supported controls. Weekend is derived from the normalized
+  // date; the promotional control is included only when a complete mapped flag exists.
+  const includePromoControl = availableFields?.promo_active === true;
+  const weekendValue = (record: DataRecord) => {
+    if (typeof record.is_weekend === 'boolean') return record.is_weekend ? 1 : 0;
+    const day = new Date(record.date + 'T00:00:00Z').getUTCDay();
+    return day === 0 || day === 6 ? 1 : 0;
+  };
+  const X: number[][] = valid.map(record => [
     1,
-    Math.log(r.price),
-    r.promo_active ? 1 : 0,
-    r.is_weekend ? 1 : 0,
+    Math.log(record.price),
+    ...(includePromoControl ? [record.promo_active ? 1 : 0] : []),
+    weekendValue(record),
   ]);
   const y = valid.map(r => Math.log(r.units_sold));
 
   const beta = solveLinearRegression(X, y);
   const rawElasticity = beta[1]; // d(ln Q) / d(ln P)
 
-  // Residual variance and standard error
-  const y_pred = X.map(x => beta[0] + beta[1] * x[1] + beta[2] * x[2] + beta[3] * x[3]);
+  // Residual variance and approximate standard error for an observational estimate.
+  const y_pred = X.map(row => row.reduce((sum, value, index) => sum + value * beta[index], 0));
   let ssRes = 0;
   let ssTot = 0;
   const meanY = y.reduce((a, b) => a + b, 0) / n;
@@ -873,10 +881,14 @@ export function computePriceElasticity(
     p_value: Math.round(p_value * 10000) / 10000,
     r_squared: Math.round(r_squared * 1000) / 1000,
     sample_size: n,
-    confounders_controlled: ['Promotional Campaign Active (binary)', 'Weekend Calendar Timing (binary)'],
+    confounders_controlled: includePromoControl
+      ? ['Mapped promotional campaign flag (binary)', 'Weekend calendar timing derived from date (binary)']
+      : ['Weekend calendar timing derived from date (binary)'],
     scatter_data,
     sufficiency,
-    methodology_notes: 'Log-Log Ordinary Least Squares regression controlling for promotional discounts and weekend traffic. Note: This indicates observed empirical price-demand association; causal attribution requires exogenous price variation or A/B testing.',
+    methodology_notes: includePromoControl
+      ? 'Log-log Ordinary Least Squares with a mapped promotion-flag control and weekend timing derived from the record date. Confidence bounds and significance are approximate; this is an observed association, not causal elasticity. Causal attribution requires randomized price variation or a defensible exogenous design.'
+      : 'Log-log Ordinary Least Squares with weekend timing derived from the record date. No promotion control was included because the active dataset did not provide a complete mapped promotion flag. Confidence bounds and significance are approximate; this is an observed association, not causal elasticity. Causal attribution requires randomized price variation or a defensible exogenous design.',
   };
 }
 
