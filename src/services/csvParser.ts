@@ -30,6 +30,8 @@ export interface ColumnMappingConfig {
   promo_active?: string;
   competitor_price?: string;
   revenue?: string;
+  /** How negative units are handled when they represent returns/cancellations. */
+  negative_units_policy?: 'reject' | 'exclude';
 }
 
 /**
@@ -304,6 +306,8 @@ export function parseAndValidateCSV(
 ): CSVParseResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const negativeUnitsPolicy = userMapping?.negative_units_policy === 'exclude' ? 'exclude' : 'reject';
+  let excludedNegativeUnitRows = 0;
 
   if (!csvContent || typeof csvContent !== 'string' || csvContent.trim().length === 0) {
     return {
@@ -520,7 +524,12 @@ export function parseAndValidateCSV(
     }
     const units = parsedUnits;
     if (units < 0) {
-      errors.push(`Row ${lineNum}: Invalid negative units sold (${units}). Demand cannot be negative.`);
+      if (negativeUnitsPolicy === 'exclude') {
+        excludedNegativeUnitRows++;
+        warnings.push(`Row ${lineNum}: Negative quantity (${units}) excluded as a return/cancellation according to the selected upload policy.`);
+        continue;
+      }
+      errors.push(`Row ${lineNum}: Negative units sold (${units}) cannot be used as demand. If these are returns/cancellations, select the explicit option to exclude negative-quantity rows, then review the excluded-row count.`);
       continue;
     }
 
@@ -646,6 +655,9 @@ export function parseAndValidateCSV(
   fieldsWithBlankValues.forEach(field => {
     warnings.push(`The mapped ${field} column contains blank cells. That field is marked unavailable for the entire dataset so blanks are not interpreted as zero.`);
   });
+  if (excludedNegativeUnitRows > 0) {
+    warnings.push(`Excluded ${excludedNegativeUnitRows} rows with negative units as returns/cancellations. Demand and all other analytics exclude these rows.`);
+  }
 
   if (errors.length > 0) {
     return {
@@ -687,6 +699,7 @@ export function parseAndValidateCSV(
     source: 'uploaded_csv',
     created_at: new Date().toISOString(),
     row_count: cleanedRecords.length,
+    excluded_negative_unit_rows: excludedNegativeUnitRows,
     date_range: {
       start: dates[0] || '',
       end: dates[dates.length - 1] || '',
