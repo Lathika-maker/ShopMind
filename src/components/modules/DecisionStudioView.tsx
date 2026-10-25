@@ -487,6 +487,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
               <p className="text-xs text-slate-400">
                 Results are returned by the same API logic used when saving a scenario.
               </p>
+              <p className="text-[10px] text-slate-500">{currencyContext(metadata?.currency_code)}</p>
             </div>
             {previewResult && (
               <span className={`text-xs font-mono px-2 py-0.5 rounded ${previewResult.is_feasible
@@ -562,7 +563,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                   ? ' Dates without rows are not assumed to be zero-sales days.'
                   : ''}
               </p>
-              <p className="text-[11px] text-slate-500">{currencyContext(metadata?.currency_code)}</p>
+
             </div>
           )}
 
