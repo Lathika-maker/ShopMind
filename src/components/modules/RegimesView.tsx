@@ -199,7 +199,7 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
               </div>
 
               <div className="text-xs text-slate-400 flex justify-between pt-2 border-t border-slate-800/80">
-                <span>Avg Realized Price:</span>
+                <span>Avg Unit Price (source currency):</span>
                 <span className="font-mono text-white">{metadata.available_fields?.price === false ? 'N/A — no mapped price column' : `${item.average_price.toFixed(2)}`}</span>
               </div>
             </div>
