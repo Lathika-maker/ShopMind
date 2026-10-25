@@ -16,10 +16,13 @@ import {
 import {
   ScenarioSimulationResult,
   BusinessConstraints,
+  DatasetMetadata,
 } from '../../types/retail.ts';
+import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 
 interface DecisionCenterViewProps {
+  metadata: DatasetMetadata | null;
   scenarios: ScenarioSimulationResult[];
   constraints: BusinessConstraints;
   onUpdateConstraints: (c: BusinessConstraints) => void;
@@ -27,6 +30,7 @@ interface DecisionCenterViewProps {
 }
 
 export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
+  metadata,
   scenarios,
   constraints,
   onUpdateConstraints,
