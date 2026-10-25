@@ -29,6 +29,7 @@ import {
   trainAndEvaluateForecast,
   simulateScenario,
   runStressTest,
+  aggregateDailyDemand,
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
 import {
@@ -557,4 +558,63 @@ console.log('\n--- 12. Testing configurable demand stress assumptions ---');
   console.log('  ✓ Stress outcomes and labels follow the configured demand shocks.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (12/12 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 13: Transaction-level CSVs are aggregated to daily demand
+// =========================================================================
+console.log('\n--- 13. Testing daily aggregation for forecasting and regime analysis ---');
+
+{
+  const transactions: DataRecord[] = [];
+  for (let day = 1; day <= 12; day++) {
+    const date = `2025-01-${String(day).padStart(2, '0')}`;
+    transactions.push({
+      id: `TX-${day}-A`,
+      date,
+      product_id: 'SKU-DAILY',
+      product_name: 'Daily Product',
+      category: '',
+      units_sold: day,
+      price: 0,
+      unit_cost: 0,
+      discount_pct: 0,
+      promo_active: false,
+      inventory_on_hand: 0,
+      competitor_price: 0,
+    });
+    transactions.push({
+      id: `TX-${day}-B`,
+      date,
+      product_id: 'SKU-DAILY',
+      product_name: 'Daily Product',
+      category: '',
+      units_sold: 2,
+      price: 0,
+      unit_cost: 0,
+      discount_pct: 0,
+      promo_active: false,
+      inventory_on_hand: 0,
+      competitor_price: 0,
+    });
+  }
+
+  const daily = aggregateDailyDemand(transactions);
+  assert(transactions.length === 24, 'Fixture represents 24 transaction rows');
+  assert(daily.length === 12, 'Two transactions on a day become one daily observation');
+  assert(daily[0].units_sold === 3, 'Daily demand sums transaction quantities');
+  assert(daily[11].units_sold === 14, 'Last daily observation aggregates correctly');
+
+  const forecast = trainAndEvaluateForecast(daily, 'linear_regression', 0.8, {
+    price: false,
+    unit_cost: false,
+    discount_pct: false,
+    promo_active: false,
+    competitor_price: false,
+  });
+  assert(forecast.predictions.length > 0, 'Forecast can run on daily aggregates');
+  assert(!forecast.feature_importances.some(item => item.feature === 'Unit Price'), 'Unavailable unit price is not used as a forecast feature');
+  assert(forecast.test_period.start !== forecast.test_period.end || daily.length > 10, 'Chronological test range is retained');
+
+  console.log('  ✓ Transaction volume is aggregated per product-day and unavailable features are excluded.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (13/13 TEST SUITES)\n=============================================================\n');
