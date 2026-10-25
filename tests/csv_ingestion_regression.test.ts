@@ -146,12 +146,14 @@ assert(badDateRes.errors.some(e => e.includes('Invalid or malformed date')), 'Te
 const duplicateCSV = `date,product_id,units_sold,price
 2025-01-01,SKU-1,10,25
 2025-01-01,SKU-1,15,25
+2025-01-01,SKU-1,10,25
 2025-01-02,SKU-1,20,25
 2025-01-03,SKU-1,25,25`;
 const dupRes = parseAndValidateCSV(duplicateCSV, undefined);
-assert(dupRes.success === true, 'Test 6: Duplicates generate warnings but valid rows are processed');
-assert(dupRes.warnings.some(w => w.includes('Duplicate observation')), 'Test 6: Duplicate observation warning present');
-console.log('✓ TEST 6 PASSED: Malformed dates caught; duplicate observations recorded with warning');
+assert(dupRes.success === true, 'Test 6: Duplicate warnings do not block valid rows');
+assert(dupRes.warnings.some(w => w.includes('Exact duplicate source row')), 'Test 6: Exact repeated source row warning present');
+assert(!dupRes.warnings.some(w => w.includes('Duplicate observation for product')), 'Test 6: Different same-day quantities are not called duplicates');
+console.log('✓ TEST 6 PASSED: Malformed dates caught; exact repeated source rows warn without flagging valid same-day transactions');
 
 // ==========================================
 // TEST 7: Dataset with insufficient observations
