@@ -104,7 +104,21 @@ export interface ForecastMetrics {
   limitations: string[];
 }
 
+export interface DateCoverageSummary {
+  observed_product_days: number;
+  calendar_span_days: number;
+  unobserved_calendar_days: number;
+  first_date: string | null;
+  last_date: string | null;
+  missing_days_imputed: false;
+}
+
 export interface ForecastResult {
+  observation_grain?: 'daily_product';
+  transaction_rows?: number;
+  daily_observations?: number;
+  date_coverage?: DateCoverageSummary;
+  available_features?: Record<string, boolean>;
   model_id: string;
   product_id: string;
   product_name: string;
