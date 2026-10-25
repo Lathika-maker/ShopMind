@@ -50,6 +50,10 @@ interface ProductDemandBaseline {
   id: string;
   name: string;
   baseDemand: number;
+  meanUnitsPerObservedProductDay: number;
+  observedProductDays: number;
+  calendarSpanDays: number;
+  unobservedCalendarDays: number;
   basePrice: number | null;
   elasticity: number | null;
 }
@@ -105,18 +109,19 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
   const productRecords = activeRecords.filter(record => record.product_id === productId);
   if (productRecords.length === 0) return null;
 
-  // Aggregate volume across the observed calendar span, so multiple transactions
-  // on the same date do not count as multiple selling days.
+  // Missing calendar dates are unknown coverage, not automatically observed zero-sales days.
   const dates = productRecords.map(record => record.date).filter(Boolean).sort();
+  const observedProductDays = new Set(dates).size;
   const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
   const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
-  const calendarDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+  const calendarSpanDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
     ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
-    : Math.max(1, new Set(dates).size);
+    : observedProductDays;
+  const unobservedCalendarDays = Math.max(0, calendarSpanDays - observedProductDays);
   const totalUnits = productRecords.reduce((sum, record) => sum + record.units_sold, 0);
-  const averageDailyDemand = totalUnits / calendarDays;
-  // The 30-day horizon is explicit; no generic benchmark demand is substituted.
-  const baseDemand = Math.max(0, Math.round(averageDailyDemand * 30));
+  const meanUnitsPerObservedProductDay = totalUnits / Math.max(1, observedProductDays);
+  // Explicit extrapolation from recorded product-days; missing dates are not assumed zero.
+  const baseDemand = Math.max(0, Math.round(meanUnitsPerObservedProductDay * 30));
 
   const pricedRecords = activeMetadata?.available_fields?.price === true
     ? productRecords.filter(record => Number.isFinite(record.price) && record.price > 0)
@@ -137,6 +142,10 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
     id: productId,
     name: productRecords[0].product_name || productId,
     baseDemand,
+    meanUnitsPerObservedProductDay: Math.round(meanUnitsPerObservedProductDay * 100) / 100,
+    observedProductDays,
+    calendarSpanDays,
+    unobservedCalendarDays,
     basePrice,
     elasticity,
   };
@@ -472,8 +481,13 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       date_start: dates[0] || null,
       date_end: dates[dates.length - 1] || null,
       observed_calendar_days: spanDays,
+      observed_product_days: new Set(dates).size,
+      calendar_span_days: spanDays,
+      unobserved_calendar_days: Math.max(0, spanDays - new Set(dates).size),
       total_units: Math.round(totalUnits * 100) / 100,
       average_units_per_record: Math.round((totalUnits / records.length) * 100) / 100,
+      mean_units_per_observed_product_day: baseline?.meanUnitsPerObservedProductDay ?? null,
+      demand_baseline_method: 'Mean units per distinct recorded product-day extrapolated to 30 days; missing dates are not treated as zero sales.',
       estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
       average_unit_price: average('price'),
       derived_unit_price_from_revenue: activeMetadata.available_fields?.price === true ? null : derivedUnitRevenue,
