@@ -14,7 +14,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { ScenarioSimulationResult, DatasetMetadata } from '../../types/retail.ts';
-import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -85,7 +85,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
 
   const comparedScenarios = scenarios.filter(s => selectedIds.includes(s.scenario_id));
 
-  // Scatter chart data: Tradeoff between Estimated Profit ($) and Stock-Out Risk (%)
+  // Scatter chart data: tradeoff between profit in the selected currency and stock-out risk
   const tradeoffData = scenarios.map(s => ({
     name: s.name,
     profit: s.estimated_profit,
@@ -169,7 +169,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
                 <td className="py-2.5 px-4 font-sans font-medium text-slate-400">Effective Selling Price</td>
                 {comparedScenarios.map(s => (
                   <td key={s.scenario_id} className="py-2.5 px-4 text-right font-bold text-white">
-                    ${s.effective_price.toFixed(2)}
+                    {formatCurrency(s.effective_price, metadata?.currency_code)}
                   </td>
                 ))}
               </tr>
@@ -209,7 +209,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
                 <td className="py-2.5 px-4 font-sans font-medium text-slate-400">Gross Sales Revenue</td>
                 {comparedScenarios.map(s => (
                   <td key={s.scenario_id} className="py-2.5 px-4 text-right font-bold text-white">
-                    ${s.revenue.toLocaleString()}
+                    {formatCurrency(s.revenue, metadata?.currency_code)}
                   </td>
                 ))}
               </tr>
@@ -217,7 +217,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
                 <td className="py-2.5 px-4 font-sans font-semibold text-[#E2B774]">Estimated Operating Profit</td>
                 {comparedScenarios.map(s => (
                   <td key={s.scenario_id} className="py-2.5 px-4 text-right font-bold text-emerald-400 text-sm">
-                    ${s.estimated_profit.toLocaleString()}
+                    {formatCurrency(s.estimated_profit, metadata?.currency_code)}
                   </td>
                 ))}
               </tr>
@@ -270,11 +270,12 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5">
         <div className="mb-4 pb-3 border-b border-slate-800">
           <h3 className="text-sm font-semibold text-white">
-            Strategic Efficient Frontier: Profit ($) vs. Stock-Out Risk (%)
+            Strategic Efficient Frontier: Profit ({currencyLabel(metadata?.currency_code)}) vs. Stock-Out Risk (%)
           </h3>
           <p className="text-xs text-slate-400">
             Optimal alternatives lie in the top-left quadrant (high profit with minimal stockout exposure).
           </p>
+          <p className="text-[10px] text-slate-500 mt-1">{currencyContext(metadata?.currency_code)}</p>
         </div>
 
         <div className="h-64 w-full">
@@ -294,7 +295,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
                 dataKey="profit"
                 name="Estimated Profit"
                 type="number"
-                tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                tickFormatter={(v) => formatCurrency(Number(v), metadata?.currency_code)}
                 stroke="#64748B"
                 fontSize={11}
               />
@@ -306,7 +307,7 @@ export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
                   borderRadius: '4px',
                 }}
                 formatter={(val: any, name: any) => [
-                  name === 'Estimated Profit' ? `$${Number(val).toLocaleString()}` : `${val}%`,
+                  name === 'Estimated Profit' ? formatCurrency(Number(val), metadata?.currency_code) : `${val}%`,
                   name,
                 ]}
               />
