@@ -183,7 +183,7 @@ console.log('\n--- 4. Testing Invalid Numeric Values ---');
     'Must report non-numeric units sold'
   );
   assert(
-    invalidNumRes.errors.some(e => e.includes('Invalid negative units sold')),
+    invalidNumRes.errors.some(e => e.includes('Negative units sold')),
     'Must report negative units sold'
   );
   assert(
