@@ -534,6 +534,18 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                   <div className="text-lg font-mono text-white">{Number(productSummary.total_units).toLocaleString()}</div>
                 </div>
                 <div>
+                  <div className="text-[10px] uppercase text-slate-500">Recorded product-days</div>
+                  <div className="text-lg font-mono text-white">
+                    {productSummary.observed_product_days ?? productSummary.row_count}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase text-slate-500">Dates without rows</div>
+                  <div className="text-lg font-mono text-white">
+                    {productSummary.unobserved_calendar_days ?? 'N/A'}
+                  </div>
+                </div>
+                <div>
                   <div className="text-[10px] uppercase text-slate-500">Observed date span</div>
                   <div className="text-xs font-mono text-white">{productSummary.date_start || 'N/A'} → {productSummary.date_end || 'N/A'}</div>
                 </div>
@@ -543,6 +555,12 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                   This demand summary is based on observed units and dates. To calculate financial and stock-out outcomes, supply {missingFields.filter(field => field !== 'selling price').join(' and ') || 'the missing commercial inputs'} explicitly.
                 </p>
               )}
+              <p className="text-[11px] text-slate-500">
+                Baseline method: {productSummary.demand_baseline_method || 'Observed units scaled to a 30-day horizon'}.
+                {productSummary.unobserved_calendar_days > 0
+                  ? ' Dates without rows are not assumed to be zero-sales days.'
+                  : ''}
+              </p>
             </div>
           )}
 
