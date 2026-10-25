@@ -291,6 +291,36 @@ export function chronologicalSplit<T extends { date: string }>(
 }
 
 /**
+ * Summarize date coverage without pretending absent dates were observed as zero sales.
+ */
+export function summarizeDateCoverage(records: DataRecord[]): {
+  observed_product_days: number;
+  calendar_span_days: number;
+  unobserved_calendar_days: number;
+  first_date: string | null;
+  last_date: string | null;
+  missing_days_imputed: false;
+} {
+  const dates = Array.from(new Set(records.map(record => record.date).filter(Boolean))).sort();
+  const firstDate = dates[0] || null;
+  const lastDate = dates[dates.length - 1] || null;
+  const firstMs = firstDate ? Date.parse(firstDate + 'T00:00:00Z') : NaN;
+  const lastMs = lastDate ? Date.parse(lastDate + 'T00:00:00Z') : NaN;
+  const calendarSpan = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+    ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
+    : dates.length;
+
+  return {
+    observed_product_days: dates.length,
+    calendar_span_days: calendarSpan,
+    unobserved_calendar_days: Math.max(0, calendarSpan - dates.length),
+    first_date: firstDate,
+    last_date: lastDate,
+    missing_days_imputed: false,
+  };
+}
+
+/**
  * Aggregate transaction-level product records into one observation per calendar
  * day before forecasting or regime detection. Transaction rows are not independent
  * selling days; sum quantity and retain transparent daily feature summaries.
@@ -718,7 +748,7 @@ export function detectDemandRegimes(
   return {
     regimes: results,
     summary,
-    threshold_used: `${windowSize}-day rolling window with Z-Score bounds (High: z > +0.95, Low: z < -0.95)`,
+    threshold_used: `${windowSize}-observation rolling window over recorded product-days; missing calendar dates are not imputed (High: z > +0.95, Low: z < -0.95)`,
   };
 }
 
