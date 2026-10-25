@@ -674,4 +674,32 @@ console.log('\n--- 14. Testing evidence-supported elasticity controls and constr
   console.log('  ✓ Elasticity controls match available fields and inventory constraints are enforced.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (14/14 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 15: Explicit handling of returns and negative quantities
+// =========================================================================
+console.log('\n--- 15. Testing opt-in exclusion of negative quantities ---');
+
+{
+  const csv = `date,product_id,units_sold,price
+2025-01-01,SKU-RETURNS,10,5
+2025-01-02,SKU-RETURNS,-2,5
+2025-01-03,SKU-RETURNS,8,5
+2025-01-04,SKU-RETURNS,12,5`;
+
+  const rejectByDefault = parseAndValidateCSV(csv, undefined, 'Returns Test');
+  assert(rejectByDefault.success === false, 'Negative quantities remain rejected by default');
+
+  const excludeReturns = parseAndValidateCSV(
+    csv,
+    { negative_units_policy: 'exclude' },
+    'Returns Excluded Test'
+  );
+  assert(excludeReturns.success === true, 'Explicit exclude policy allows the valid positive-demand rows');
+  assert(excludeReturns.records?.length === 3, 'Negative quantity row is omitted rather than netted into demand');
+  assert(excludeReturns.metadata?.excluded_negative_unit_rows === 1, 'Excluded row count is included in metadata');
+  assert(excludeReturns.warnings.some(w => w.includes('Excluded 1 rows with negative units')), 'Summary warning explains the exclusion');
+
+  console.log('  ✓ Negative quantities are rejected by default and excluded only under an explicit policy.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (15/15 TEST SUITES)\n=============================================================\n');
