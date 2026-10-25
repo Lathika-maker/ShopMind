@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   CheckCircle,
 } from 'lucide-react';
-import { ScenarioSimulationResult } from '../../types/retail.ts';
+import { ScenarioSimulationResult, DatasetMetadata } from '../../types/retail.ts';
+import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
 import {
   ResponsiveContainer,
   ScatterChart,
@@ -26,11 +27,13 @@ import {
 } from 'recharts';
 
 interface ScenarioComparisonViewProps {
+  metadata: DatasetMetadata | null;
   scenarios: ScenarioSimulationResult[];
   onNavigate: (tab: string) => void;
 }
 
 export const ScenarioComparisonView: React.FC<ScenarioComparisonViewProps> = ({
+  metadata,
   scenarios,
   onNavigate,
 }) => {
