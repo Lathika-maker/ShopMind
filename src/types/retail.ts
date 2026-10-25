@@ -27,6 +27,8 @@ export interface DatasetMetadata {
   source: 'synthetic_demo' | 'uploaded_csv';
   created_at: string;
   row_count: number;
+  /** Number of rows explicitly excluded by the negative-units policy. */
+  excluded_negative_unit_rows?: number;
   date_range: {
     start: string;
     end: string;
