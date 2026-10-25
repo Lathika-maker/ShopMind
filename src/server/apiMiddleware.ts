@@ -23,6 +23,7 @@ import {
   simulateScenario,
   runStressTest,
   aggregateDailyDemand,
+  summarizeDateCoverage,
 } from '../services/calculations.ts';
 import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
 
@@ -621,6 +622,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         observation_grain: 'daily_product',
         transaction_rows: transactionRecords.length,
         daily_observations: dailyRecords.length,
+        date_coverage: summarizeDateCoverage(dailyRecords),
         available_features: activeMetadata.available_fields,
       });
     });
@@ -666,6 +668,10 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       product_name: prodRecords[0]?.product_name,
       ...result,
       model_error_by_regime,
+      observation_grain: 'daily_product',
+      transaction_rows: transactionRecords.length,
+      daily_observations: dailyRecords.length,
+      date_coverage: summarizeDateCoverage(dailyRecords),
     });
   }
 
@@ -882,11 +888,11 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         id: 'ins_demand_regime',
         category: 'demand_regime',
         title: `Demand Regime Dynamics: ${primaryProdName}`,
-        observed: `${highSummary.percentage}% of calendar days operate in High Demand regime (Z > +0.95), while ${lowSummary?.percentage || 0}% operate in Low Demand regime (Z < -0.95).`,
-        supporting_data: `14-day rolling window identified high regime demand averaging ${highSummary.average_demand} units/day vs ${lowSummary?.average_demand || 0} units/day during low regime.`,
+        observed: `${highSummary.percentage}% of recorded product-day observations are classified as High Demand (Z > +0.95), while ${lowSummary?.percentage || 0}% are classified as Low Demand (Z < -0.95).`,
+        supporting_data: `A 14-observation rolling window identified average high-regime demand of ${highSummary.average_demand} units per recorded product-day vs ${lowSummary?.average_demand || 0} during low-regime observations. Calendar-date gaps are not imputed.`,
         why_it_matters: 'Static reorder points create acute stock-out vulnerabilities during transition periods into high demand regimes.',
         possible_action: 'Shift safety inventory targets from fixed day-coverage units to dynamic regime-adaptive replenishment schedules.',
-        uncertainty_limitations: 'Rolling Z-scores require consecutive trading periods and incorporate a 2-3 day lag following abrupt single-day demand shocks.',
+        uncertainty_limitations: 'The rolling Z-score uses recorded product-day observations; missing calendar dates are not imputed, so irregular source coverage can affect regime interpretation.',
         severity: highSummary.percentage > 20 ? 'high' : 'medium',
       });
     }
