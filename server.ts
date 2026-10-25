@@ -549,7 +549,7 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
     ? pricedRecords.reduce((sum, r) => sum + r.price, 0) / pricedRecords.length
     : null;
   const elasticityResult = distinctPrices.size >= 2 && pricedRecords.length >= 10
-    ? computePriceElasticity(prodRecords)
+    ? computePriceElasticity(prodRecords, activeMetadata?.available_fields)
     : null;
   const elasticity = elasticityResult && elasticityResult.sufficiency !== 'insufficient' &&
     Number.isFinite(elasticityResult.elasticity)
@@ -714,7 +714,7 @@ app.get('/api/price-sensitivity', (req: Request, res: Response) => {
       });
     }
 
-    const result = computePriceElasticity(prodRecords);
+    const result = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
     res.json({
       product_id: targetProd,
       product_name: prodRecords[0]?.product_name || targetProd,
@@ -937,7 +937,7 @@ app.get('/api/insights', (_req: Request, res: Response) => {
     const prodRecords = activeRecords.filter(r => r.product_id === pid);
     if (activeMetadata.available_fields?.price === true &&
         prodRecords.length >= 15 && prodRecords.some(r => r.price > 0)) {
-      const elast = computePriceElasticity(prodRecords);
+      const elast = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
       if (elast.sufficiency !== 'insufficient' && elast.elasticity < -1.5) {
         const prodName = prodRecords[0].product_name || pid;
         insights.push({
