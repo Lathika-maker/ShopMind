@@ -267,6 +267,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   {metadata.is_synthetic ? 'Test fixture' : 'Uploaded CSV'}
                 </span>
               </div>
+              {(metadata.excluded_negative_unit_rows || 0) > 0 && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-amber-300 font-sans">Excluded negative-quantity rows</span>
+                  <span className="text-amber-300 font-mono">
+                    {metadata.excluded_negative_unit_rows} rows
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 flex gap-2">
