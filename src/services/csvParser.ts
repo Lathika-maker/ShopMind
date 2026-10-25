@@ -32,6 +32,8 @@ export interface ColumnMappingConfig {
   revenue?: string;
   /** How negative units are handled when they represent returns/cancellations. */
   negative_units_policy?: 'reject' | 'exclude';
+  /** ISO 4217 currency code, or UNSPECIFIED to avoid assuming a currency. */
+  currency_code?: string;
 }
 
 /**
@@ -371,7 +373,7 @@ export function parseAndValidateCSV(
   if (userMapping) {
     Object.entries(userMapping).forEach(([field, value]) => {
       // negative_units_policy is an upload policy value, not a source column name.
-      if (field !== 'negative_units_policy' && value) claimedHeaders.add(value);
+      if (field !== 'negative_units_policy' && field !== 'currency_code' && value) claimedHeaders.add(value);
     });
   }
 
@@ -701,6 +703,9 @@ export function parseAndValidateCSV(
     created_at: new Date().toISOString(),
     row_count: cleanedRecords.length,
     excluded_negative_unit_rows: excludedNegativeUnitRows,
+    currency_code: userMapping?.currency_code && /^[A-Z]{3}$/.test(userMapping.currency_code)
+      ? userMapping.currency_code
+      : 'UNSPECIFIED',
     date_range: {
       start: dates[0] || '',
       end: dates[dates.length - 1] || '',
