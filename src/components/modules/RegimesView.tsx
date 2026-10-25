@@ -25,6 +25,7 @@ import {
   Cell,
 } from 'recharts';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 
 interface RegimesViewProps {
   metadata: DatasetMetadata | null;
@@ -173,6 +174,8 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
         </div>
       </div>
 
+      <div className="text-[10px] text-slate-500">{currencyContext(metadata.currency_code)}</div>
+
       {/* Regime Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {summary.map((item: any) => {
@@ -199,8 +202,8 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
               </div>
 
               <div className="text-xs text-slate-400 flex justify-between pt-2 border-t border-slate-800/80">
-                <span>Avg Unit Price (source currency):</span>
-                <span className="font-mono text-white">{metadata.available_fields?.price === false ? 'N/A — no mapped price column' : `${item.average_price.toFixed(2)}`}</span>
+                <span>Avg Unit Price ({currencyLabel(metadata.currency_code)}):</span>
+                <span className="font-mono text-white">{metadata.available_fields?.price === false ? 'N/A — no mapped price column' : formatCurrency(item.average_price, metadata.currency_code)}</span>
               </div>
             </div>
           );
