@@ -446,7 +446,7 @@ export function parseAndValidateCSV(
   }
 
   const cleanedRecords: DataRecord[] = [];
-  const seenDateProdKeys = new Set<string>();
+  const seenSourceRows = new Set<string>();
   let duplicateCount = 0;
   const optionalFieldComplete: Record<string, boolean> = {
     price: Boolean(priceCol),
@@ -532,13 +532,14 @@ export function parseAndValidateCSV(
     const prodName = productNameValue || prodId;
     const category = catCol && row[catCol] ? row[catCol] : '';
 
-    // Duplicate detection
-    const uniqueKey = `${prodId}_${normalizedDate}`;
-    if (seenDateProdKeys.has(uniqueKey)) {
+    // Flag an exact repeated source row, not every repeated product/date pair.
+    // Multiple transactions for the same SKU on the same date are valid POS data.
+    const uniqueKey = JSON.stringify(headers.map(header => row[header] ?? ''));
+    if (seenSourceRows.has(uniqueKey)) {
       duplicateCount++;
-      warnings.push(`Row ${lineNum}: Duplicate observation for product "${prodId}" on date "${normalizedDate}".`);
+      warnings.push(`Row ${lineNum}: Exact duplicate source row detected across all CSV columns. Review it; repeated transactions may still be legitimate.`);
     } else {
-      seenDateProdKeys.add(uniqueKey);
+      seenSourceRows.add(uniqueKey);
     }
 
     // Price is only populated from an actual unit-price column.
