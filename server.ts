@@ -25,6 +25,7 @@ import {
   simulateScenario,
   runStressTest,
   aggregateDailyDemand,
+  summarizeDateCoverage,
 } from './src/services/calculations.ts';
 
 import {
@@ -613,6 +614,7 @@ app.post('/api/forecasting/train', (req: Request, res: Response) => {
       observation_grain: 'daily_product',
       transaction_rows: transactionRecords.length,
       daily_observations: dailyRecords.length,
+      date_coverage: summarizeDateCoverage(dailyRecords),
       available_features: activeMetadata.available_fields,
     });
   } catch (err: any) {
@@ -686,6 +688,7 @@ app.get('/api/regimes', (req: Request, res: Response) => {
       observation_grain: 'daily_product',
       transaction_rows: transactionRecords.length,
       daily_observations: dailyRecords.length,
+      date_coverage: summarizeDateCoverage(dailyRecords),
     });
   } catch (err: any) {
     res.status(500).json({ error: `Demand regime detection failed: ${err.message}` });
@@ -966,11 +969,11 @@ app.get('/api/insights', (_req: Request, res: Response) => {
           id: `ins_demand_regime_${pid}`,
           category: 'demand_regime',
           title: `Demand Regime Clustering Detected for ${prodName}`,
-          observed: `${highRegime.percentage}% of calendar days operate in a High Demand regime (Z > +0.95).`,
-          supporting_data: `14-day rolling window identified average high regime demand of ${highRegime.average_demand} units vs overall sample mean.`,
+          observed: `${highRegime.percentage}% of recorded product-day observations are classified as High Demand (Z > +0.95).`,
+          supporting_data: `A 14-observation rolling window identified average high-regime demand of ${highRegime.average_demand} units per recorded product-day. Calendar-date gaps are not imputed.`,
           why_it_matters: 'Fixed buffer stock risks stock-outs during regime transitions into volume surges.',
           possible_action: 'Transition from fixed buffer stocks to regime-adaptive replenishment schedules.',
-          uncertainty_limitations: 'Rolling Z-score lags abrupt single-day demand spikes by 2-3 trading days.',
+          uncertainty_limitations: 'The rolling Z-score uses recorded product-day observations; missing calendar dates are not imputed, so irregular source coverage can affect interpretation.',
           severity: 'medium',
         });
         break;
