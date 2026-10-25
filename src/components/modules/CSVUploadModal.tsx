@@ -39,6 +39,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     inventory_on_hand: '',
     competitor_price: '',
     revenue: '',
+    promo_active: '',
   });
 
   if (!isOpen) return null;
@@ -48,6 +49,14 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     if (!selected) return;
     // Allow the same file to be selected again after correcting a mapping or validation issue.
     e.target.value = '';
+
+    if (selected.size > 40 * 1024 * 1024) {
+      clearSelectedFile();
+      setErrorMsg('CSV files must be 40 MB or smaller for this upload workflow. Reduce the file size or split it into smaller exports.');
+      setErrorDetails([]);
+      e.target.value = '';
+      return;
+    }
 
     const extension = selected.name.split('.').pop()?.toLowerCase();
     const allowedMimeTypes = [
@@ -117,6 +126,8 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       inventory_on_hand: '',
       competitor_price: '',
       revenue: '',
+      promo_active: '',
+    promo_active: '',
     });
   };
 
@@ -173,6 +184,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       inventory_on_hand: mappingGuess.inventory_on_hand || '',
       competitor_price: mappingGuess.competitor_price || '',
       revenue: mappingGuess.revenue || '',
+      promo_active: mappingGuess.promo_active || '',
     });
 
     const previewRows = rows.slice(1, 6).map(values => {
