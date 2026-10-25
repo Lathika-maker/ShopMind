@@ -22,6 +22,7 @@ import {
   computePriceElasticity,
   simulateScenario,
   runStressTest,
+  aggregateDailyDemand,
 } from '../services/calculations.ts';
 import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
 
@@ -558,14 +559,24 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       }
       const { product_id, algorithm = 'linear_regression', train_ratio = 0.8 } = body;
       const targetProd = product_id || activeRecords[0]?.product_id;
-      const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-      if (prodRecords.length < 10) {
+      const transactionRecords = activeRecords.filter(r => r.product_id === targetProd);
+      const dailyRecords = aggregateDailyDemand(transactionRecords);
+      if (dailyRecords.length < 10) {
         return sendJson(res, 400, {
-          error: `Insufficient observations for product ${targetProd}. Found ${prodRecords.length}, minimum 10 required.`,
+          error: `Insufficient daily observations for product ${targetProd}. Found ${dailyRecords.length} unique product-days from ${transactionRecords.length} transaction rows; at least 10 product-days are required.`,
         });
       }
-      const forecast = trainAndEvaluateForecast(prodRecords, algorithm, train_ratio);
-      return sendJson(res, 200, forecast);
+      if (Number(train_ratio) <= 0.5 || Number(train_ratio) >= 1) {
+        return sendJson(res, 400, { error: 'Training split must be greater than 50% and less than 100% so a meaningful chronological test set remains.' });
+      }
+      const forecast = trainAndEvaluateForecast(dailyRecords, algorithm, train_ratio, activeMetadata.available_fields);
+      return sendJson(res, 200, {
+        ...forecast,
+        observation_grain: 'daily_product',
+        transaction_rows: transactionRecords.length,
+        daily_observations: dailyRecords.length,
+        available_features: activeMetadata.available_fields,
+      });
     });
     return;
   }
@@ -575,13 +586,18 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before demand-regime analysis.' });
     }
     const targetProd = (parsed.query.product_id as string) || activeRecords[0]?.product_id;
-    const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-    if (prodRecords.length < 14) {
-      return sendJson(res, 400, { error: `Need at least 14 days of data for regimes.` });
+    const transactionRecords = activeRecords.filter(r => r.product_id === targetProd);
+    const dailyRecords = aggregateDailyDemand(transactionRecords);
+    if (dailyRecords.length < 14) {
+      return sendJson(res, 400, {
+        error: `Need at least 14 unique product-days for demand-regime analysis. Found ${dailyRecords.length} product-days from ${transactionRecords.length} transaction rows.`,
+      });
     }
-    const result = detectDemandRegimes(prodRecords, 14);
-    const forecast = trainAndEvaluateForecast(prodRecords, 'linear_regression', 0.8);
-    const resMap = new Map(forecast.residuals.map(r => [r.date, Math.abs(r.residual)]));
+    const result = detectDemandRegimes(dailyRecords, 14);
+    const forecast = dailyRecords.length >= 10
+      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields)
+      : null;
+    const resMap = new Map((forecast?.residuals || []).map(r => [r.date, Math.abs(r.residual)]));
     const errorByRegime: Record<'low' | 'normal' | 'high', { sumErr: number; count: number }> = {
       low: { sumErr: 0, count: 0 },
       normal: { sumErr: 0, count: 0 },
@@ -735,19 +751,29 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     const primaryProdId = activeRecords[0].product_id;
     const primaryProdName = activeRecords[0].product_name || primaryProdId;
     const primaryRecords = activeRecords.filter(r => r.product_id === primaryProdId);
+    const dailyRecords = aggregateDailyDemand(primaryRecords);
 
-    // 1. Empirical Price Sensitivity
+    // Price elasticity uses transaction-level rows; volume forecasting/regimes use product-day aggregates.
     const elast = computePriceElasticity(primaryRecords);
-    const meanPrice = primaryRecords.reduce((s, r) => s + r.price, 0) / (primaryRecords.length || 1);
-    const meanUnits = primaryRecords.reduce((s, r) => s + r.units_sold, 0) / (primaryRecords.length || 1);
+    const pricedRecords = activeMetadata?.available_fields?.price === true
+      ? primaryRecords.filter(record => record.price > 0)
+      : [];
+    const meanPrice = pricedRecords.length
+      ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
+      : null;
+    const meanUnits = primaryRecords.length
+      ? primaryRecords.reduce((sum, record) => sum + record.units_sold, 0) / primaryRecords.length
+      : 0;
 
-    // 2. Empirical Demand Regimes
-    const regimesResult = primaryRecords.length >= 14 ? detectDemandRegimes(primaryRecords, 14) : null;
+    // 2. Empirical Demand Regimes at daily grain
+    const regimesResult = dailyRecords.length >= 14 ? detectDemandRegimes(dailyRecords, 14) : null;
     const highSummary = regimesResult?.summary.find(s => s.regime === 'high');
     const lowSummary = regimesResult?.summary.find(s => s.regime === 'low');
 
-    // 3. Chronological Forecast Model Benchmark
-    const forecast = primaryRecords.length >= 10 ? trainAndEvaluateForecast(primaryRecords, 'linear_regression', 0.8) : null;
+    // 3. Chronological Forecast Model Benchmark at daily grain
+    const forecast = dailyRecords.length >= 10
+      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields)
+      : null;
 
     // 4. Commercial Scenario Constraint & Downside Audit
     const highRiskScen = savedScenarios.find(s => !s.is_feasible || s.stock_out_risk_percent > activeConstraints.max_stock_out_risk_pct);
@@ -763,7 +789,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         category: 'price_sensitivity',
         title: `Empirical Price Elasticity: ${primaryProdName}`,
         observed: `Estimated empirical elasticity coefficient of ${elast.elasticity.toFixed(2)} (95% CI: [${elast.confidence_interval_95[0].toFixed(2)}, ${elast.confidence_interval_95[1].toFixed(2)}], p = ${elast.p_value.toFixed(4)}).`,
-        supporting_data: `Evaluated on ${elast.sample_size} active observations (R² = ${(elast.r_squared || 0).toFixed(3)}). Average price: ${meanPrice.toFixed(2)}, average volume: ${meanUnits.toFixed(1)} units.`,
+        supporting_data: `Evaluated on ${elast.sample_size} active observations (R² = ${(elast.r_squared || 0).toFixed(3)}). Average price: ${meanPrice!.toFixed(2)}, mean transaction volume: ${meanUnits.toFixed(1)} units.`,
         why_it_matters: elast.elasticity < -1
           ? `Demand is price-elastic (coefficient ${elast.elasticity.toFixed(2)} < -1.0). Strategic promotional markdown stimulates more than proportional volume expansion.`
           : `Demand is price-inelastic (coefficient ${elast.elasticity.toFixed(2)} >= -1.0). Protect price floors to preserve gross margin rather than discounting.`,
@@ -831,7 +857,10 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       });
     }
 
-    return sendJson(res, 200, insights);
+    return sendJson(res, 200, insights.map(item => ({
+      ...item,
+      evidence_grain: item.category === 'price_sensitivity' ? 'transaction' : 'daily_product',
+    })));
   }
 
   if (next) next();
