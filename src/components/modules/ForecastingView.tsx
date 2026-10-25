@@ -150,7 +150,7 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
             Demand Forecasting & Chronological Evaluation
           </h2>
           <div className="text-xs text-slate-400 mt-0.5">
-            Strict chronological train/test split. No future leakage. Validated error metrics.
+            Chronological holdout evaluation on recorded product-days, with actual feature availability shown below.
           </div>
         </div>
 
@@ -219,6 +219,24 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
           <span>{isLoading ? 'Fitting Model...' : 'Re-fit Model'}</span>
         </button>
       </div>
+
+      {forecastResult?.date_coverage && (
+        <div className="p-3 bg-slate-900/70 border border-slate-800 rounded text-xs text-slate-300">
+          <div className="font-semibold text-white mb-1">Forecast data grain and date coverage</div>
+          <div>
+            {forecastResult.transaction_rows ?? '—'} transaction rows were aggregated into {forecastResult.daily_observations ?? forecastResult.date_coverage.observed_product_days} recorded product-days for this product.
+          </div>
+          <div className="text-slate-400 mt-1">
+            Observed span: {forecastResult.date_coverage.first_date || 'N/A'} → {forecastResult.date_coverage.last_date || 'N/A'} ({forecastResult.date_coverage.calendar_span_days} calendar dates).
+            {forecastResult.date_coverage.unobserved_calendar_days > 0
+              ? ` ${forecastResult.date_coverage.unobserved_calendar_days} dates contain no rows; they are not imputed as zero demand.`
+              : ' No missing calendar dates in this observed span.'}
+          </div>
+          <div className="text-slate-400 mt-1">
+            Unmapped or incomplete commercial columns are excluded from model features rather than represented as zero.
+          </div>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-3 bg-red-950/40 border border-red-800 rounded text-xs text-red-200 flex items-center gap-2">
