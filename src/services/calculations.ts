@@ -286,6 +286,55 @@ export function chronologicalSplit<T extends { date: string }>(
   };
 }
 
+/**
+ * Aggregate transaction-level product records into one observation per calendar
+ * day before forecasting or regime detection. Transaction rows are not independent
+ * selling days; sum quantity and retain transparent daily feature summaries.
+ */
+export function aggregateDailyDemand(records: DataRecord[]): DataRecord[] {
+  const grouped = new Map<string, DataRecord[]>();
+  for (const record of records) {
+    const key = `${record.product_id}__${record.date}`;
+    const existing = grouped.get(key);
+    if (existing) existing.push(record);
+    else grouped.set(key, [record]);
+  }
+
+  const weightedAverage = (rows: DataRecord[], field: 'price' | 'unit_cost' | 'discount_pct' | 'competitor_price') => {
+    const valid = rows.filter(row => Number.isFinite(row[field]) && row[field] >= 0);
+    if (!valid.length) return 0;
+    const weightTotal = valid.reduce((sum, row) => sum + Math.max(0, row.units_sold), 0);
+    const total = valid.reduce((sum, row) => sum + row[field] * Math.max(0, row.units_sold), 0);
+    return weightTotal > 0
+      ? Math.round((total / weightTotal) * 100) / 100
+      : Math.round((valid.reduce((sum, row) => sum + row[field], 0) / valid.length) * 100) / 100;
+  };
+
+  return Array.from(grouped.values()).map((rows, index) => {
+    const first = rows[0];
+    const totalUnits = rows.reduce((sum, row) => sum + row.units_sold, 0);
+    const dailyRecord: DataRecord = {
+      ...first,
+      id: `DAY-${first.product_id}-${first.date}-${index}`,
+      units_sold: Math.round(totalUnits * 100) / 100,
+      price: weightedAverage(rows, 'price'),
+      unit_cost: weightedAverage(rows, 'unit_cost'),
+      discount_pct: weightedAverage(rows, 'discount_pct'),
+      competitor_price: weightedAverage(rows, 'competitor_price'),
+      inventory_on_hand: Math.max(0, ...rows.map(row => Number.isFinite(row.inventory_on_hand) ? row.inventory_on_hand : 0)),
+      promo_active: rows.some(row => row.promo_active),
+      ...(rows.some(row => typeof row.revenue === 'number')
+        ? { revenue: Math.round(rows.reduce((sum, row) => sum + (row.revenue || 0), 0) * 100) / 100 }
+        : {}),
+      ...(rows.some(row => row.data_missing_fields?.length)
+        ? { data_missing_fields: Array.from(new Set(rows.flatMap(row => row.data_missing_fields || []))) }
+        : {}),
+    };
+    dailyRecord.is_weekend = [0, 6].includes(new Date(first.date + 'T00:00:00Z').getUTCDay());
+    return dailyRecord;
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.product_id.localeCompare(b.product_id));
+}
+
 // Multiple Linear Regression solver using Normal Equations: (X^T X + lambda I)^-1 X^T y
 export function solveLinearRegression(
   X: number[][], // n rows, p features (first feature is 1 for bias/intercept)
@@ -386,33 +435,47 @@ function invertMatrix(M: number[][]): number[][] | null {
 }
 
 // Extract features for record
-export function extractFeatures(record: DataRecord): { names: string[]; values: number[] } {
-  const d = new Date(record.date);
-  const dayOfWeek = d.getUTCDay(); // 0-6
-  const month = d.getUTCMonth(); // 0-11
-  const isWeekendVal = record.is_weekend ? 1 : (dayOfWeek === 0 || dayOfWeek === 6 ? 1 : 0);
-  const promoVal = record.promo_active ? 1 : 0;
-  const priceDiff = record.price - (record.competitor_price || record.price);
+export function extractFeatures(
+  record: DataRecord,
+  availableFields?: Record<string, boolean>
+): { names: string[]; values: number[] } {
+  const d = new Date(record.date + 'T00:00:00Z');
+  const dayOfWeek = d.getUTCDay();
+  const month = d.getUTCMonth();
+  const names = ['Intercept'];
+  const values = [1];
 
-  return {
-    names: ['Intercept', 'Price', 'Discount %', 'Promo Active', 'Competitor Price Diff', 'Weekend', 'Month Seasonality'],
-    values: [
-      1, // Intercept
-      record.price,
-      record.discount_pct || 0,
-      promoVal,
-      priceDiff,
-      isWeekendVal,
-      Math.sin((2 * Math.PI * month) / 12),
-    ],
-  };
+  if (availableFields?.price !== false) {
+    names.push('Unit Price');
+    values.push(record.price);
+  }
+  if (availableFields?.discount_pct === true) {
+    names.push('Discount %');
+    values.push(record.discount_pct || 0);
+  }
+  if (availableFields?.promo_active === true) {
+    names.push('Promo Active');
+    values.push(record.promo_active ? 1 : 0);
+  }
+  if (availableFields?.price === true && availableFields?.competitor_price === true) {
+    names.push('Competitor Price Difference');
+    values.push(record.price - record.competitor_price);
+  }
+
+  names.push('Weekend', 'Month Seasonality');
+  values.push(
+    record.is_weekend === undefined ? ([0, 6].includes(dayOfWeek) ? 1 : 0) : (record.is_weekend ? 1 : 0),
+    Math.sin((2 * Math.PI * month) / 12)
+  );
+  return { names, values };
 }
 
 // Complete Chronological Forecasting Pipeline
 export function trainAndEvaluateForecast(
   records: DataRecord[],
   algorithm: ModelAlgorithm = 'linear_regression',
-  trainRatio = 0.8
+  trainRatio = 0.8,
+  availableFields?: Record<string, boolean>
 ): ForecastResult {
   const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
   if (sorted.length < 10) {
@@ -450,14 +513,14 @@ export function trainAndEvaluateForecast(
     importances = [{ feature: '7-Day Rolling Mean', importance: 1.0 }];
   } else if (algorithm === 'linear_regression') {
     // Multiple Linear Regression
-    const X_train = train.map(r => extractFeatures(r).values);
+    const X_train = train.map(r => extractFeatures(r, availableFields).values);
     const y_train = train.map(r => r.units_sold);
-    featureNames = extractFeatures(train[0]).names;
+    featureNames = extractFeatures(train[0], availableFields).names;
 
     const weights = solveLinearRegression(X_train, y_train);
 
     trainPredictions = X_train.map(x => Math.max(0, x.reduce((sum, val, idx) => sum + val * weights[idx], 0)));
-    const X_test = test.map(r => extractFeatures(r).values);
+    const X_test = test.map(r => extractFeatures(r, availableFields).values);
     testPredictions = X_test.map(x => Math.max(0, x.reduce((sum, val, idx) => sum + val * weights[idx], 0)));
 
     // Calculate approximate standardized feature importance from coefficients
