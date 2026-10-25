@@ -29,6 +29,8 @@ export interface DatasetMetadata {
   row_count: number;
   /** Number of rows explicitly excluded by the negative-units policy. */
   excluded_negative_unit_rows?: number;
+  /** Currency code selected by the uploader. UNSPECIFIED avoids silently assuming USD. */
+  currency_code?: string;
   date_range: {
     start: string;
     end: string;
