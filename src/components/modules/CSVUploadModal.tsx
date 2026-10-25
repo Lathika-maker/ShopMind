@@ -127,7 +127,6 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       competitor_price: '',
       revenue: '',
       promo_active: '',
-    promo_active: '',
     });
   };
 
