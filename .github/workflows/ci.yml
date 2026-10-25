@@ -29,6 +29,9 @@ jobs:
       - name: Run automated tests
         run: npm test
 
+      - name: Type-check TypeScript
+        run: npm run lint
+
       - name: Build frontend
         run: npm run build
 
