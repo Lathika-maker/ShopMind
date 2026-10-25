@@ -8,6 +8,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { convertRecordsToCSV } from './src/data/syntheticDemo.ts';
+import { formatCurrency, currencyContext } from './src/services/formatting.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -1014,7 +1015,7 @@ app.get('/api/insights', (_req: Request, res: Response) => {
       title: `Stock-Out Vulnerability in '${riskyScenario.name}'`,
       observed: `Simulated stock-out risk reaches ${riskyScenario.stock_out_risk_percent}% with ${riskyScenario.unmet} unmet customer orders.`,
       supporting_data: `Assumed demand of ${riskyScenario.demand} units against available inventory ceiling of ${riskyScenario.inventory} units.`,
-      why_it_matters: `Causes an estimated $${(riskyScenario.unmet * (riskyScenario.selling_price - riskyScenario.unit_cost)).toFixed(2)} in lost gross margin contribution.`,
+      why_it_matters: `Causes an estimated ${formatCurrency(riskyScenario.unmet * (riskyScenario.selling_price - riskyScenario.unit_cost), activeMetadata?.currency_code)} in lost gross margin contribution. ${currencyContext(activeMetadata?.currency_code)}`,
       possible_action: 'Allocate emergency buffer inventory or adjust promotional budget to preserve fulfillment rates.',
       uncertainty_limitations: 'Assumes unfulfilled shoppers do not backorder or substitute for adjacent catalog items.',
       severity: 'high',
