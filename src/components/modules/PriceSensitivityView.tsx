@@ -15,6 +15,7 @@ import {
 import { KPICard } from '../ui/KPICard.tsx';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
 import { PriceSensitivityResult, DatasetMetadata } from '../../types/retail.ts';
+import { formatCurrency, currencyContext } from '../../services/formatting.ts';
 import {
   ResponsiveContainer,
   ScatterChart,
