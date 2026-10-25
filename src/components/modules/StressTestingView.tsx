@@ -13,7 +13,8 @@ import {
   Layers,
   ArrowRight,
 } from 'lucide-react';
-import { ScenarioSimulationResult, StressTestResult } from '../../types/retail.ts';
+import { ScenarioSimulationResult, StressTestResult, DatasetMetadata } from '../../types/retail.ts';
+import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
 import { runStressTest } from '../../services/calculations.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 import {
@@ -28,11 +29,13 @@ import {
 } from 'recharts';
 
 interface StressTestingViewProps {
+  metadata: DatasetMetadata | null;
   scenarios: ScenarioSimulationResult[];
   onNavigate: (tab: string) => void;
 }
 
 export const StressTestingView: React.FC<StressTestingViewProps> = ({
+  metadata,
   scenarios,
   onNavigate,
 }) => {
