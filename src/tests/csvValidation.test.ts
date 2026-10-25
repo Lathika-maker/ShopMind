@@ -612,7 +612,7 @@ console.log('\n--- 13. Testing daily aggregation for forecasting and regime anal
   });
   assert(forecast.predictions.length > 0, 'Forecast can run on daily aggregates');
   assert(!forecast.feature_importances.some(item => item.feature === 'Unit Price'), 'Unavailable unit price is not used as a forecast feature');
-  assert(forecast.test_period.start !== forecast.test_period.end || daily.length > 10, 'Chronological test range is retained');
+  assert(forecast.metrics.test_sample_size > 0, 'Chronological test range is retained');
 
   console.log('  ✓ Transaction volume is aggregated per product-day and unavailable features are excluded.');
 }
