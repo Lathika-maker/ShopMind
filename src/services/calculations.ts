@@ -114,6 +114,10 @@ export function simulateScenario(
       violated_constraints.push(`Stock-out risk ${outcomes.stock_out_risk_percent}% > max ${constraints.max_stock_out_risk_pct}%`);
       is_feasible = false;
     }
+    if (constraints.min_inventory_coverage_units > 0 && input.inventory < constraints.min_inventory_coverage_units) {
+      violated_constraints.push(`Inventory ${input.inventory} units < minimum coverage ${constraints.min_inventory_coverage_units} units`);
+      is_feasible = false;
+    }
     if (constraints.max_price_ceiling && effective_price > constraints.max_price_ceiling) {
       violated_constraints.push(`Price $${effective_price.toFixed(2)} exceeds ceiling $${constraints.max_price_ceiling}`);
       is_feasible = false;
