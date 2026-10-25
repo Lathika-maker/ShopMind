@@ -126,7 +126,7 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
     ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
     : null;
   const elasticityResult = distinctPrices.size >= 2 && pricedRecords.length >= 10
-    ? computePriceElasticity(productRecords)
+    ? computePriceElasticity(productRecords, activeMetadata?.available_fields)
     : null;
   const elasticity = elasticityResult && elasticityResult.sufficiency !== 'insufficient' &&
     Number.isFinite(elasticityResult.elasticity)
@@ -686,7 +686,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
       });
     }
-    const result = computePriceElasticity(prodRecords);
+    const result = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
     return sendJson(res, 200, {
       product_id: targetProd,
       product_name: prodRecords[0]?.product_name,
@@ -836,7 +836,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     const dailyRecords = aggregateDailyDemand(primaryRecords);
 
     // Price elasticity uses transaction-level rows; volume forecasting/regimes use product-day aggregates.
-    const elast = computePriceElasticity(primaryRecords);
+    const elast = computePriceElasticity(primaryRecords, activeMetadata?.available_fields);
     const pricedRecords = activeMetadata?.available_fields?.price === true
       ? primaryRecords.filter(record => record.price > 0)
       : [];
