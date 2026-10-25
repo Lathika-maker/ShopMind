@@ -14,7 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { ScenarioSimulationResult, StressTestResult, DatasetMetadata } from '../../types/retail.ts';
-import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 import { runStressTest } from '../../services/calculations.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 import {
