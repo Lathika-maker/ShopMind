@@ -788,8 +788,32 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'PUT' && pathname === '/api/constraints') {
     parseBody(req).then(body => {
-      activeConstraints = { ...activeConstraints, ...body };
+      const proposed: BusinessConstraints = {
+        ...activeConstraints,
+        ...body,
+        weights: { ...activeConstraints.weights, ...(body?.weights || {}) },
+      };
+      const validationError = validateBusinessConstraints(proposed);
+      if (validationError) return sendJson(res, 400, { error: validationError });
+
+      activeConstraints = proposed;
+      savedScenarios = savedScenarios.map(scenario => {
+        const input: ScenarioInput = {
+          id: scenario.scenario_id,
+          name: scenario.name,
+          product_id: scenario.product_id,
+          selling_price: scenario.selling_price,
+          unit_cost: scenario.unit_cost,
+          discount_pct: scenario.discount_pct,
+          promotion_cost: scenario.promotion_cost,
+          advertising_cost: scenario.advertising_cost,
+          inventory: scenario.inventory,
+        };
+        return simulateScenario(input, scenario.demand, scenario.product_name, scenario.demand_source, activeConstraints);
+      });
       return sendJson(res, 200, activeConstraints);
+    }).catch((error: any) => {
+      return sendJson(res, 400, { error: error?.message || 'Invalid constraint update.' });
     });
     return;
   }
