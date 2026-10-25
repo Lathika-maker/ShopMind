@@ -108,7 +108,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             Price Sensitivity & Empirical Elasticity
           </h2>
           <div className="text-xs text-slate-400 mt-0.5">
-            Log-Log Ordinary Least Squares with promotion and weekend controls.
+            Log-log OLS with controls gated by available mapped fields; see the fit-specific control list below.
           </div>
         </div>
 
@@ -215,7 +215,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
             <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Daily POS Points
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Transaction POS Points
             </span>
             <span className="flex items-center gap-1.5 text-[#E2B774]">
               <span className="w-2.5 h-2.5 rounded-sm bg-[#E2B774]" /> Fitted OLS Demand Curve
