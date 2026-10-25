@@ -53,6 +53,52 @@ interface ProductDemandBaseline {
   elasticity: number | null;
 }
 
+function validateScenarioInput(input: ScenarioInput): string | null {
+  if (!input || typeof input !== 'object') return 'Scenario payload must be a JSON object.';
+  if (typeof input.name !== 'string' || !input.name.trim()) return 'Provide a non-empty scenario name.';
+  if (input.name.trim().length > 120) return 'Scenario name must be 120 characters or fewer.';
+  if (typeof input.product_id !== 'string' || !input.product_id.trim()) return 'Select a product from the active dataset.';
+  if (!Number.isFinite(input.selling_price) || input.selling_price <= 0) return 'Selling price must be a finite positive number.';
+  const discount = input.discount_pct ?? 0;
+  if (!Number.isFinite(discount) || discount < 0 || discount >= 100) return 'Discount must be between 0% and less than 100%; the effective selling price must remain positive.';
+  if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) return 'Unit cost must be a finite non-negative number.';
+  if (!Number.isFinite(input.inventory) || input.inventory < 0) return 'Inventory must be a finite non-negative number.';
+  const promotionCost = input.promotion_cost ?? 0;
+  const advertisingCost = input.advertising_cost ?? 0;
+  if (!Number.isFinite(promotionCost) || promotionCost < 0) return 'Promotion budget must be a finite non-negative number.';
+  if (!Number.isFinite(advertisingCost) || advertisingCost < 0) return 'Advertising budget must be a finite non-negative number.';
+  if (input.competitor_price !== undefined && (!Number.isFinite(input.competitor_price) || input.competitor_price < 0)) {
+    return 'Competitor reference price must be a finite non-negative number.';
+  }
+  return null;
+}
+
+function validateBusinessConstraints(value: BusinessConstraints): string | null {
+  const scalarValues: Array<[string, number]> = [
+    ['Minimum profit margin', value.min_profit_margin_pct],
+    ['Maximum stock-out risk', value.max_stock_out_risk_pct],
+    ['Minimum inventory coverage', value.min_inventory_coverage_units],
+    ['Price floor', value.min_price_floor],
+    ['Price ceiling', value.max_price_ceiling],
+  ];
+  for (const [label, numberValue] of scalarValues) {
+    if (!Number.isFinite(numberValue)) return label + ' must be a finite number.';
+  }
+  if (value.min_profit_margin_pct < 0 || value.min_profit_margin_pct > 100) return 'Minimum profit margin must be between 0% and 100%.';
+  if (value.max_stock_out_risk_pct < 0 || value.max_stock_out_risk_pct > 100) return 'Maximum stock-out risk must be between 0% and 100%.';
+  if (value.min_inventory_coverage_units < 0) return 'Minimum inventory coverage cannot be negative.';
+  if (value.min_price_floor < 0 || value.max_price_ceiling < 0) return 'Price floor and ceiling cannot be negative.';
+  if (value.max_price_ceiling > 0 && value.min_price_floor > value.max_price_ceiling) return 'Price floor cannot exceed the price ceiling.';
+  const weights = [
+    value.weights?.profit_weight,
+    value.weights?.stockout_weight,
+    value.weights?.leftover_weight,
+  ];
+  if (weights.some(weight => !Number.isFinite(weight) || (weight as number) < 0)) return 'Decision weights must be finite non-negative numbers.';
+  if (weights.reduce((sum, weight) => sum + (weight as number), 0) <= 0) return 'At least one decision weight must be greater than zero.';
+  return null;
+}
+
 function getProductBaseline(productId: string): ProductDemandBaseline | null {
   if (!activeMetadata || activeRecords.length === 0) return null;
   const productRecords = activeRecords.filter(record => record.product_id === productId);
@@ -651,6 +697,9 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       if (!activeMetadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before simulating a scenario.' });
       }
+      const validationError = validateScenarioInput(input);
+      if (validationError) return sendJson(res, 400, { error: validationError });
+
       if (!input.product_id || !Number.isFinite(input.selling_price) || input.selling_price <= 0) {
         return sendJson(res, 400, { error: 'A positive selling price is required.' });
       }
@@ -679,6 +728,9 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       if (!activeMetadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before creating a commercial scenario.' });
       }
+      const validationError = validateScenarioInput(input);
+      if (validationError) return sendJson(res, 400, { error: validationError });
+
       if (!input.product_id || !Number.isFinite(input.selling_price) || input.selling_price <= 0) {
         return sendJson(res, 400, { error: 'Select a product from the active dataset and provide a positive selling price.' });
       }
