@@ -24,6 +24,7 @@ import {
 } from '../../types/retail.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 
 
 interface DecisionStudioViewProps {
@@ -349,7 +350,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Selling Price ($){sellingPriceSource === 'derived' ? ' — derived' : sellingPriceSource === 'mapped' ? ' — from CSV' : ''}
+                Selling Price ({currencyLabel(metadata?.currency_code)}){sellingPriceSource === 'derived' ? ' — derived' : sellingPriceSource === 'mapped' ? ' — from CSV' : ''}
               </label>
               {sellingPriceSource === 'derived' && (
                 <p className="text-[10px] text-amber-300 mb-1">
@@ -365,7 +366,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Unit Cost (COGS $)
+                Unit Cost (COGS · {currencyLabel(metadata?.currency_code)})
               </label>
               <input
                 type="number"
@@ -393,7 +394,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                 className="w-full accent-[#E2B774] cursor-pointer"
               />
               <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                Effective Price: ${effectivePrice.toFixed(2)}
+                Effective Price: {formatCurrency(effectivePrice, metadata?.currency_code)}
               </div>
             </div>
 
@@ -417,7 +418,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Promotion Budget ($, assumption)
+                Promotion Budget ({currencyLabel(metadata?.currency_code)}, assumption)
               </label>
               <input
                 type="number"
@@ -428,7 +429,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Advertising Budget ($, assumption)
+                Advertising Budget ({currencyLabel(metadata?.currency_code)}, assumption)
               </label>
               <input
                 type="number"
@@ -454,7 +455,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
-                Competitor Reference Price ($)
+                Competitor Reference Price ({currencyLabel(metadata?.currency_code)})
               </label>
               <input
                 type="number"
@@ -561,6 +562,7 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                   ? ' Dates without rows are not assumed to be zero-sales days.'
                   : ''}
               </p>
+              <p className="text-[11px] text-slate-500">{currencyContext(metadata?.currency_code)}</p>
             </div>
           )}
 
@@ -591,8 +593,8 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                 {[
                   ['Estimated Demand (30 days)', `${previewResult.demand.toLocaleString()} units`],
                   ['Fulfilled Units', `${previewResult.fulfilled.toLocaleString()} units`],
-                  ['Gross Revenue', `$${previewResult.revenue.toLocaleString()}`],
-                  ['Estimated Profit', `$${previewResult.estimated_profit.toLocaleString()}`],
+                  ['Gross Revenue', formatCurrency(previewResult.revenue, metadata?.currency_code)],
+                  ['Estimated Profit', formatCurrency(previewResult.estimated_profit, metadata?.currency_code)],
                   ['Profit Margin', `${previewResult.profit_margin_pct}%`],
                   ['Stock-out Risk', `${previewResult.stock_out_risk_percent}%`],
                 ].map(([label, value]) => (
@@ -652,11 +654,11 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                 <tr key={s.scenario_id} className="hover:bg-slate-800/40">
                   <td className="py-2.5 px-4 font-sans font-medium text-white">{s.name}</td>
                   <td className="py-2.5 px-4 font-sans text-slate-400">{s.product_name}</td>
-                  <td className="py-2.5 px-4 text-right">${s.effective_price.toFixed(2)}</td>
+                  <td className="py-2.5 px-4 text-right">{formatCurrency(s.effective_price, metadata?.currency_code)}</td>
                   <td className="py-2.5 px-4 text-right">{s.demand}</td>
                   <td className="py-2.5 px-4 text-right font-semibold text-white">{s.fulfilled}</td>
-                  <td className="py-2.5 px-4 text-right">${s.revenue.toLocaleString()}</td>
-                  <td className="py-2.5 px-4 text-right font-bold text-emerald-400">${s.estimated_profit.toLocaleString()}</td>
+                  <td className="py-2.5 px-4 text-right">{formatCurrency(s.revenue, metadata?.currency_code)}</td>
+                  <td className="py-2.5 px-4 text-right font-bold text-emerald-400">{formatCurrency(s.estimated_profit, metadata?.currency_code)}</td>
                   <td className="py-2.5 px-4 text-right">
                     <span className={s.stock_out_risk_percent > 15 ? 'text-amber-400' : 'text-slate-300'}>
                       {s.stock_out_risk_percent}%
