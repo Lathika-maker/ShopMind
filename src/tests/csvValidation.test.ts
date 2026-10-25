@@ -722,8 +722,7 @@ console.log('\n--- 16. Testing dataset currency selection and formatting ---');
   const unspecified = parseAndValidateCSV(csv, undefined, 'Unspecified Currency Dataset');
   assert(unspecified.success === true, 'CSV parses when no currency is specified');
   assert(unspecified.metadata?.currency_code === 'UNSPECIFIED', 'No currency is not silently converted to USD');
-  assert(!formatCurrency(1250, 'UNSPECIFIED').includes('
-), 'Unspecified amount formatting does not add a dollar symbol');
+  assert(!formatCurrency(1250, 'UNSPECIFIED').includes("$"), 'Unspecified amount formatting does not add a dollar symbol');
 
   console.log('  ✓ Monetary values retain the uploader-selected currency or remain symbol-neutral.');
 }
