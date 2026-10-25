@@ -41,6 +41,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     revenue: '',
     promo_active: '',
     negative_units_policy: 'reject',
+    currency_code: 'UNSPECIFIED',
   });
 
   if (!isOpen) return null;
@@ -129,6 +130,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       revenue: '',
       promo_active: '',
       negative_units_policy: 'reject',
+      currency_code: 'UNSPECIFIED',
     });
   };
 
@@ -187,6 +189,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       revenue: mappingGuess.revenue || '',
       promo_active: mappingGuess.promo_active || '',
       negative_units_policy: 'reject',
+      currency_code: 'UNSPECIFIED',
     });
 
     const previewRows = rows.slice(1, 6).map(values => {
@@ -499,6 +502,32 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       <option value="">-- Not provided --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Currency of Monetary Columns
+                    </label>
+                    <select
+                      value={mapping.currency_code || 'UNSPECIFIED'}
+                      onChange={(e) => setMapping({ ...mapping, currency_code: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="UNSPECIFIED">Not specified — do not assume USD</option>
+                      <option value="INR">INR — Indian Rupee (₹)</option>
+                      <option value="USD">USD — US Dollar ($)</option>
+                      <option value="EUR">EUR — Euro (€)</option>
+                      <option value="GBP">GBP — Pound Sterling (£)</option>
+                      <option value="CAD">CAD — Canadian Dollar</option>
+                      <option value="AUD">AUD — Australian Dollar</option>
+                      <option value="JPY">JPY — Japanese Yen (¥)</option>
+                      <option value="CNY">CNY — Chinese Yuan (¥)</option>
+                      <option value="SGD">SGD — Singapore Dollar</option>
+                      <option value="AED">AED — UAE Dirham</option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      Applies to price, cost, revenue and scenario amounts. Values are not converted; this only formats the existing monetary units.
+                    </p>
                   </div>
 
                   <div>
