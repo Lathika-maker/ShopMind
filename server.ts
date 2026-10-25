@@ -340,8 +340,13 @@ app.get('/api/dataset/product-summary', (req: Request, res: Response) => {
     date_start: dates[0] || null,
     date_end: dates[dates.length - 1] || null,
     observed_calendar_days: spanDays,
+    observed_product_days: new Set(dates).size,
+    calendar_span_days: spanDays,
+    unobserved_calendar_days: Math.max(0, spanDays - new Set(dates).size),
     total_units: Math.round(totalUnits * 100) / 100,
     average_units_per_record: Math.round(totalUnits / records.length * 100) / 100,
+    mean_units_per_observed_product_day: baseline?.meanUnitsPerObservedProductDay ?? null,
+    demand_baseline_method: 'Mean units per distinct recorded product-day extrapolated to 30 days; missing dates are not treated as zero sales.',
     estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
     average_unit_price: average('price'),
     derived_unit_price_from_revenue: activeMetadata.available_fields?.price === true || !hasTotalRevenue || totalUnits <= 0
@@ -484,6 +489,10 @@ interface ProductDemandBaseline {
   id: string;
   name: string;
   baseDemand: number;
+  meanUnitsPerObservedProductDay: number;
+  observedProductDays: number;
+  calendarSpanDays: number;
+  unobservedCalendarDays: number;
   basePrice: number | null;
   elasticity: number | null;
 }
@@ -539,14 +548,18 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
   const prodRecords = activeRecords.filter(r => r.product_id === productId);
   if (prodRecords.length === 0) return null;
 
+  // Missing calendar dates are unknown coverage, not automatically observed zero-sales days.
   const dates = prodRecords.map(r => r.date).filter(Boolean).sort();
+  const observedProductDays = new Set(dates).size;
   const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
   const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
-  const calendarDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
+  const calendarSpanDays = Number.isFinite(firstMs) && Number.isFinite(lastMs)
     ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
-    : Math.max(1, new Set(dates).size);
+    : observedProductDays;
+  const unobservedCalendarDays = Math.max(0, calendarSpanDays - observedProductDays);
   const totalUnits = prodRecords.reduce((sum, record) => sum + record.units_sold, 0);
-  const baseDemand = Math.max(0, Math.round((totalUnits / calendarDays) * 30));
+  const meanUnitsPerObservedProductDay = totalUnits / Math.max(1, observedProductDays);
+  const baseDemand = Math.max(0, Math.round(meanUnitsPerObservedProductDay * 30));
 
   const pricedRecords = activeMetadata?.available_fields?.price === true
     ? prodRecords.filter(r => Number.isFinite(r.price) && r.price > 0)
@@ -567,6 +580,10 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
     id: productId,
     name: prodRecords[0].product_name || productId,
     baseDemand,
+    meanUnitsPerObservedProductDay: Math.round(meanUnitsPerObservedProductDay * 100) / 100,
+    observedProductDays,
+    calendarSpanDays,
+    unobservedCalendarDays,
     basePrice,
     elasticity,
   };
