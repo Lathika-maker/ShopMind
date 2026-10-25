@@ -15,6 +15,7 @@ import {
   FileCode,
 } from 'lucide-react';
 import { DatasetMetadata, BusinessConstraints } from '../../types/retail.ts';
+import { currencyLabel } from '../../services/formatting.ts';
 
 interface SettingsViewProps {
   metadata: DatasetMetadata | null;
