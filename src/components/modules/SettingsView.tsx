@@ -15,7 +15,7 @@ import {
   FileCode,
 } from 'lucide-react';
 import { DatasetMetadata, BusinessConstraints } from '../../types/retail.ts';
-import { currencyLabel } from '../../services/formatting.ts';
+import { currencyLabel, currencyContext } from '../../services/formatting.ts';
 
 interface SettingsViewProps {
   metadata: DatasetMetadata | null;
@@ -114,7 +114,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 font-medium mb-1">
-                  Price Floor ($)
+                  Price Floor ({currencyLabel(metadata?.currency_code)})
                 </label>
                 <input
                   type="number"
@@ -126,7 +126,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div>
                 <label className="block text-slate-400 font-medium mb-1">
-                  Price Ceiling ($)
+                  Price Ceiling ({currencyLabel(metadata?.currency_code)})
                 </label>
                 <input
                   type="number"
@@ -155,6 +155,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="space-y-3 text-xs text-slate-300 font-mono">
+            <div className="text-[10px] text-slate-500">{currencyContext(metadata?.currency_code)}</div>
             <div className="flex justify-between py-1 border-b border-slate-800/80">
               <span className="font-sans text-slate-400">Dataset Name:</span>
               <span className="text-white truncate max-w-[240px]">
