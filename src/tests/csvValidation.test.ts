@@ -32,6 +32,7 @@ import {
   aggregateDailyDemand,
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
+import { formatCurrency } from '../services/formatting.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -702,4 +703,29 @@ console.log('\n--- 15. Testing opt-in exclusion of negative quantities ---');
   console.log('  ✓ Negative quantities are rejected by default and excluded only under an explicit policy.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (15/15 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 16: Explicit currency metadata and neutral formatting
+// =========================================================================
+console.log('\n--- 16. Testing dataset currency selection and formatting ---');
+
+{
+  const csv = `date,product_id,units_sold,price
+2025-01-01,SKU-CURRENCY,3,10
+2025-01-02,SKU-CURRENCY,4,11
+2025-01-03,SKU-CURRENCY,5,12`;
+
+  const inr = parseAndValidateCSV(csv, { currency_code: 'INR' }, 'INR Dataset');
+  assert(inr.success === true, 'Currency selection must not interfere with CSV parsing');
+  assert(inr.metadata?.currency_code === 'INR', 'Chosen currency code is stored in metadata');
+  assert(formatCurrency(1250, 'INR').includes('₹'), 'INR amount formatting uses the Indian Rupee symbol');
+
+  const unspecified = parseAndValidateCSV(csv, undefined, 'Unspecified Currency Dataset');
+  assert(unspecified.success === true, 'CSV parses when no currency is specified');
+  assert(unspecified.metadata?.currency_code === 'UNSPECIFIED', 'No currency is not silently converted to USD');
+  assert(!formatCurrency(1250, 'UNSPECIFIED').includes('
+), 'Unspecified amount formatting does not add a dollar symbol');
+
+  console.log('  ✓ Monetary values retain the uploader-selected currency or remain symbol-neutral.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (16/16 TEST SUITES)\n=============================================================\n');
