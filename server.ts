@@ -24,6 +24,7 @@ import {
   computePriceElasticity,
   simulateScenario,
   runStressTest,
+  aggregateDailyDemand,
 } from './src/services/calculations.ts';
 
 import {
@@ -549,15 +550,25 @@ app.post('/api/forecasting/train', (req: Request, res: Response) => {
     const { product_id, algorithm = 'linear_regression', train_ratio = 0.8 } = req.body;
     const targetProd = product_id || activeRecords[0]?.product_id;
 
-    const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-    if (prodRecords.length < 10) {
+    const transactionRecords = activeRecords.filter(r => r.product_id === targetProd);
+    const dailyRecords = aggregateDailyDemand(transactionRecords);
+    if (dailyRecords.length < 10) {
       return res.status(400).json({
-        error: `Insufficient observations for product "${targetProd}". Found ${prodRecords.length}, minimum 10 required for chronological evaluation.`,
+        error: `Insufficient daily observations for product "${targetProd}". Found ${dailyRecords.length} unique product-days from ${transactionRecords.length} transaction rows; at least 10 product-days are required.`,
       });
     }
+    if (!Number.isFinite(Number(train_ratio)) || Number(train_ratio) <= 0.5 || Number(train_ratio) >= 1) {
+      return res.status(400).json({ error: 'Training split must be greater than 50% and less than 100% so a meaningful chronological test set remains.' });
+    }
 
-    const forecast = trainAndEvaluateForecast(prodRecords, algorithm, train_ratio);
-    res.json(forecast);
+    const forecast = trainAndEvaluateForecast(dailyRecords, algorithm, train_ratio, activeMetadata.available_fields);
+    res.json({
+      ...forecast,
+      observation_grain: 'daily_product',
+      transaction_rows: transactionRecords.length,
+      daily_observations: dailyRecords.length,
+      available_features: activeMetadata.available_fields,
+    });
   } catch (err: any) {
     res.status(500).json({ error: `Forecasting failed: ${err.message}` });
   }
@@ -574,15 +585,16 @@ app.get('/api/regimes', (req: Request, res: Response) => {
 
     const { product_id } = req.query;
     const targetProd = (product_id as string) || activeRecords[0]?.product_id;
-    const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
+    const transactionRecords = activeRecords.filter(r => r.product_id === targetProd);
+    const dailyRecords = aggregateDailyDemand(transactionRecords);
 
-    if (prodRecords.length < 14) {
+    if (dailyRecords.length < 14) {
       return res.status(400).json({
-        error: `Insufficient observations for regime detection. Found ${prodRecords.length} records for product "${targetProd}", minimum 14 required.`,
+        error: `Insufficient daily observations for regime detection. Found ${dailyRecords.length} unique product-days from ${transactionRecords.length} transaction rows; at least 14 product-days are required.`,
       });
     }
 
-    const result = detectDemandRegimes(prodRecords, 14);
+    const result = detectDemandRegimes(dailyRecords, 14);
 
     // Compute model error by regime using standard linear regression if sample allows
     let model_error_by_regime = [
@@ -591,9 +603,9 @@ app.get('/api/regimes', (req: Request, res: Response) => {
       { regime: 'high', mae: 0, sample_size: 0 },
     ];
 
-    if (prodRecords.length >= 10) {
+    if (dailyRecords.length >= 10) {
       try {
-        const forecast = trainAndEvaluateForecast(prodRecords, 'linear_regression', 0.8);
+        const forecast = trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields);
         const resMap = new Map(forecast.residuals.map(r => [r.date, Math.abs(r.residual)]));
 
         const errorByRegime: Record<'low' | 'normal' | 'high', { sumErr: number; count: number }> = {
@@ -622,9 +634,12 @@ app.get('/api/regimes', (req: Request, res: Response) => {
 
     res.json({
       product_id: targetProd,
-      product_name: prodRecords[0]?.product_name || targetProd,
+      product_name: transactionRecords[0]?.product_name || targetProd,
       ...result,
       model_error_by_regime,
+      observation_grain: 'daily_product',
+      transaction_rows: transactionRecords.length,
+      daily_observations: dailyRecords.length,
     });
   } catch (err: any) {
     res.status(500).json({ error: `Demand regime detection failed: ${err.message}` });
@@ -858,7 +873,8 @@ app.get('/api/insights', (_req: Request, res: Response) => {
   // Insight A: High Elasticity Opportunity from active products
   for (const pid of uniqueProductIds) {
     const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    if (prodRecords.length >= 15 && prodRecords.some(r => r.price > 0)) {
+    if (activeMetadata.available_fields?.price === true &&
+        prodRecords.length >= 15 && prodRecords.some(r => r.price > 0)) {
       const elast = computePriceElasticity(prodRecords);
       if (elast.sufficiency !== 'insufficient' && elast.elasticity < -1.5) {
         const prodName = prodRecords[0].product_name || pid;
@@ -881,8 +897,9 @@ app.get('/api/insights', (_req: Request, res: Response) => {
   // Insight B: Demand Regime Clustering in active products
   for (const pid of uniqueProductIds) {
     const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    if (prodRecords.length >= 14) {
-      const regimes = detectDemandRegimes(prodRecords, 14);
+    const dailyRecords = aggregateDailyDemand(prodRecords);
+    if (dailyRecords.length >= 14) {
+      const regimes = detectDemandRegimes(dailyRecords, 14);
       const highRegime = regimes.summary.find(s => s.regime === 'high');
       if (highRegime && highRegime.percentage >= 15) {
         const prodName = prodRecords[0].product_name || pid;
@@ -921,9 +938,10 @@ app.get('/api/insights', (_req: Request, res: Response) => {
   // Insight D: Model Chronological Performance
   for (const pid of uniqueProductIds) {
     const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    if (prodRecords.length >= 10) {
+    const dailyRecords = aggregateDailyDemand(prodRecords);
+    if (dailyRecords.length >= 10) {
       try {
-        const lrForecast = trainAndEvaluateForecast(prodRecords, 'linear_regression', 0.8);
+        const lrForecast = trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields);
         const prodName = prodRecords[0].product_name || pid;
         insights.push({
           id: `ins_forecast_metrics_${pid}`,
