@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { DataRecord, DatasetMetadata } from '../../types/retail.ts';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 
 interface DataExplorerViewProps {
   metadata: DatasetMetadata | null;
@@ -219,13 +220,13 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                 <th className="py-3 px-4">Product Name</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4 text-right">Units Sold</th>
-                <th className="py-3 px-4 text-right">Revenue</th>
-                <th className="py-3 px-4 text-right">Selling Price</th>
-                <th className="py-3 px-4 text-right">Unit Cost</th>
+                <th className="py-3 px-4 text-right">Revenue ({currencyLabel(metadata.currency_code)})</th>
+                <th className="py-3 px-4 text-right">Selling Price ({currencyLabel(metadata.currency_code)})</th>
+                <th className="py-3 px-4 text-right">Unit Cost ({currencyLabel(metadata.currency_code)})</th>
                 <th className="py-3 px-4 text-right">Discount</th>
                 <th className="py-3 px-4 text-center">Promo</th>
                 <th className="py-3 px-4 text-right">Inventory</th>
-                <th className="py-3 px-4 text-right">Competitor</th>
+                <th className="py-3 px-4 text-right">Competitor ({currencyLabel(metadata.currency_code)})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300 text-xs tabular-nums">
@@ -250,13 +251,13 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                     <td className="py-2.5 px-4 font-sans text-slate-400 whitespace-nowrap">{metadata.available_fields?.category === false || !r.category ? 'N/A' : r.category}</td>
                     <td className="py-2.5 px-4 text-right font-bold text-white">{r.units_sold}</td>
                     <td className="py-2.5 px-4 text-right text-slate-200">
-                      {typeof r.revenue === 'number' ? `${r.revenue.toFixed(2)}` : <span className="text-slate-500">N/A</span>}
+                      {metadata.available_fields?.revenue === false || typeof r.revenue !== 'number' ? <span className="text-slate-500">N/A</span> : formatCurrency(r.revenue, metadata.currency_code)}
                     </td>
                     <td className="py-2.5 px-4 text-right">
-                      {metadata.available_fields?.price === false ? <span className="text-slate-500">N/A</span> : `${r.price.toFixed(2)}`}
+                      {metadata.available_fields?.price === false ? <span className="text-slate-500">N/A</span> : formatCurrency(r.price, metadata.currency_code)}
                     </td>
                     <td className="py-2.5 px-4 text-right text-slate-400">
-                      {metadata.available_fields?.unit_cost === false ? <span className="text-slate-500">N/A</span> : `${r.unit_cost.toFixed(2)}`}
+                      {metadata.available_fields?.unit_cost === false ? <span className="text-slate-500">N/A</span> : formatCurrency(r.unit_cost, metadata.currency_code)}
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       {metadata.available_fields?.discount_pct === false ? <span className="text-slate-500">N/A</span> : r.discount_pct > 0 ? (
@@ -278,7 +279,7 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                       {metadata.available_fields?.inventory_on_hand === false ? <span className="text-slate-500">N/A</span> : r.inventory_on_hand}
                     </td>
                     <td className="py-2.5 px-4 text-right text-slate-400">
-                      {metadata.available_fields?.competitor_price === false ? <span className="text-slate-500">N/A</span> : `${r.competitor_price.toFixed(2)}`}
+                      {metadata.available_fields?.competitor_price === false ? <span className="text-slate-500">N/A</span> : formatCurrency(r.competitor_price, metadata.currency_code)}
                     </td>
                   </tr>
                 ))
