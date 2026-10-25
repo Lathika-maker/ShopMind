@@ -216,6 +216,7 @@ export default function App() {
             {activeTab === 'stress_testing' && (
               <StressTestingView
                 key={metadata?.id ?? 'no-dataset'}
+                metadata={metadata}
                 scenarios={scenarios}
                 onNavigate={setActiveTab}
               />
@@ -224,6 +225,7 @@ export default function App() {
             {activeTab === 'comparison' && (
               <ScenarioComparisonView
                 key={metadata?.id ?? 'no-dataset'}
+                metadata={metadata}
                 scenarios={scenarios}
                 onNavigate={setActiveTab}
               />
@@ -232,6 +234,7 @@ export default function App() {
             {activeTab === 'decision_center' && (
               <DecisionCenterView
                 key={metadata?.id ?? 'no-dataset'}
+                metadata={metadata}
                 scenarios={scenarios}
                 constraints={constraints}
                 onUpdateConstraints={handleUpdateConstraints}
