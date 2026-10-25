@@ -369,8 +369,9 @@ export function parseAndValidateCSV(
   // Set of headers already explicitly mapped by the user
   const claimedHeaders = new Set<string>();
   if (userMapping) {
-    Object.values(userMapping).forEach(v => {
-      if (v) claimedHeaders.add(v);
+    Object.entries(userMapping).forEach(([field, value]) => {
+      // negative_units_policy is an upload policy value, not a source column name.
+      if (field !== 'negative_units_policy' && value) claimedHeaders.add(value);
     });
   }
 
