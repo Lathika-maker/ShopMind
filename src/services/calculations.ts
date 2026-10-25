@@ -531,9 +531,9 @@ export function trainAndEvaluateForecast(
     })).sort((a, b) => b.importance - a.importance);
   } else {
     // Random Forest / Non-linear Ensemble Approximation (Ensemble of localized regressors with feature subsampling)
-    const X_train = train.map(r => extractFeatures(r).values);
+    const X_train = train.map(r => extractFeatures(r, availableFields).values);
     const y_train = train.map(r => r.units_sold);
-    featureNames = extractFeatures(train[0]).names;
+    featureNames = extractFeatures(train[0], availableFields).names;
 
     // Train 15 randomized decision stumps
     const trees: { featureIdx: number; splitVal: number; leftMean: number; rightMean: number }[] = [];
