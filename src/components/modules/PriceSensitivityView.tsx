@@ -136,7 +136,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             Association vs. Causal Elasticity Disclaimer
           </div>
           <p className="text-slate-400 leading-relaxed">
-            The elasticity coefficient represents observed historical association from observational POS transactions, controlling for promotional status and weekend seasonality. True causal elasticity requires randomized price experiments or exogenous instrumental variables.
+            The elasticity coefficient is an observed historical association, not a causal effect. Included controls for this fit: {result?.confounders_controlled?.join(', ') || 'No estimate available'}. If the uploaded file does not contain a complete promotion flag, promotion is not claimed as a controlled variable. Causal elasticity requires randomized price experiments or a defensible exogenous design.
           </p>
         </div>
       </div>
@@ -211,6 +211,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             <p className="text-xs text-slate-400">
               Transaction observations across varying promotional discounts and base price levels.
             </p>
+            <p className="text-[10px] text-slate-500 mt-1">{currencyContext(metadata?.currency_code)}</p>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
             <span className="flex items-center gap-1.5 text-slate-300">
@@ -232,7 +233,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
                 domain={['auto', 'auto']}
                 stroke="#64748B"
                 fontSize={11}
-                tickFormatter={(v) => `$${v}`}
+                tickFormatter={(v) => formatCurrency(Number(v), metadata?.currency_code)}
               />
               <YAxis
                 dataKey="units"
@@ -252,7 +253,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
                   `${val} units`,
                   name === 'units' ? 'Actual Sales' : 'Fitted Demand',
                 ]}
-                labelFormatter={(lbl: any) => `Price: $${lbl}`}
+                labelFormatter={(lbl: any) => `Price: ${formatCurrency(Number(lbl), metadata?.currency_code)}`}
               />
               <Scatter name="Actual Units" dataKey="units" fill="#94A3B8" opacity={0.6} />
               <Line
