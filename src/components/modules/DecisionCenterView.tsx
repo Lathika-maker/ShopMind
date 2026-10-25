@@ -18,7 +18,7 @@ import {
   BusinessConstraints,
   DatasetMetadata,
 } from '../../types/retail.ts';
-import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
+import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
 import { KPICard } from '../ui/KPICard.tsx';
 
 interface DecisionCenterViewProps {
@@ -123,8 +123,8 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
     const currentConstraintViolations = [
       ...(!marginOk ? [`Margin ${s.profit_margin_pct}% is below the current ${minMargin}% floor`] : []),
       ...(!stockoutOk ? [`Stock-out risk ${s.stock_out_risk_percent}% exceeds the current ${maxStockout}% ceiling`] : []),
-      ...(!priceFloorOk ? [`Effective price ${s.effective_price} is below the configured floor of ${constraints.min_price_floor}`] : []),
-      ...(!priceCeilingOk ? [`Effective price ${s.effective_price} is above the configured ceiling of ${constraints.max_price_ceiling}`] : []),
+      ...(!priceFloorOk ? [`Effective price ${formatCurrency(s.effective_price, metadata?.currency_code)} is below the configured floor of ${formatCurrency(constraints.min_price_floor, metadata?.currency_code)}`] : []),
+      ...(!priceCeilingOk ? [`Effective price ${formatCurrency(s.effective_price, metadata?.currency_code)} is above the configured ceiling of ${formatCurrency(constraints.max_price_ceiling, metadata?.currency_code)}`] : []),
       ...(!inventoryCoverageOk ? [`Inventory ${s.inventory} units is below minimum coverage of ${constraints.min_inventory_coverage_units} units`] : []),
     ];
 
@@ -285,11 +285,12 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
               {topPick.name}
             </h3>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Generates an estimated <span className="font-mono font-bold text-emerald-400">${topPick.estimated_profit.toLocaleString()}</span> in direct operating profit with <span className="font-mono text-white">{topPick.profit_margin_pct}%</span> margin and stock-out risk of <span className="font-mono text-white">{topPick.stock_out_risk_percent}%</span>.
+              Generates an estimated <span className="font-mono font-bold text-emerald-400">{formatCurrency(topPick.estimated_profit, metadata?.currency_code)}</span> in direct operating profit with <span className="font-mono text-white">{topPick.profit_margin_pct}%</span> margin and stock-out risk of <span className="font-mono text-white">{topPick.stock_out_risk_percent}%</span>.
               {topPick.is_feasible
                 ? ' This alternative passes the currently configured margin, stock-out, price, and inventory constraints.'
                 : ' No candidate currently satisfies both active constraints. This is the highest-scoring available option, not a constraint-compliant recommendation.'}
             </p>
+            <p className="text-[10px] text-slate-500 mt-1">{currencyContext(metadata?.currency_code)}</p>
             {!topPick.is_feasible && (
               <ul className="mt-2 list-disc list-inside text-xs text-amber-300 space-y-1">
                 {topPick.currentConstraintViolations.map((violation, index) => <li key={index}>{violation}</li>)}
@@ -329,7 +330,7 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
                 <th className="py-2.5 px-4 w-12 text-center">Rank</th>
                 <th className="py-2.5 px-4">Scenario Alternative</th>
                 <th className="py-2.5 px-4">SKU Name</th>
-                <th className="py-2.5 px-4 text-right">Profit ($)</th>
+                <th className="py-2.5 px-4 text-right">Profit ({currencyLabel(metadata?.currency_code)})</th>
                 <th className="py-2.5 px-4 text-right">Margin %</th>
                 <th className="py-2.5 px-4 text-right">Stock-Out Risk</th>
                 <th className="py-2.5 px-4 text-center">Eligibility</th>
@@ -342,7 +343,7 @@ export const DecisionCenterView: React.FC<DecisionCenterViewProps> = ({
                   <td className="py-2.5 px-4 text-center font-bold text-[#E2B774]">#{idx + 1}</td>
                   <td className="py-2.5 px-4 font-sans font-medium text-white">{s.name}</td>
                   <td className="py-2.5 px-4 font-sans text-slate-400">{s.product_name}</td>
-                  <td className="py-2.5 px-4 text-right font-bold text-emerald-400">${s.estimated_profit.toLocaleString()}</td>
+                  <td className="py-2.5 px-4 text-right font-bold text-emerald-400">{formatCurrency(s.estimated_profit, metadata?.currency_code)}</td>
                   <td className="py-2.5 px-4 text-right">{s.profit_margin_pct}%</td>
                   <td className="py-2.5 px-4 text-right">
                     <span className={s.stock_out_risk_percent > maxStockout ? 'text-amber-400 font-bold' : 'text-slate-300'}>
