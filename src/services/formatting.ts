@@ -4,7 +4,7 @@
  */
 
 export function currencyLabel(currencyCode?: string | null): string {
-  if (!currencyCode || currencyCode === 'UNSPECIFIED') return 'source currency (unspecified)';
+  if (!currencyCode || currencyCode === 'UNSPECIFIED') return 'source currency';
   return currencyCode;
 }
 
