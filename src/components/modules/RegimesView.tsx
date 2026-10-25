@@ -49,6 +49,7 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
   const [selectedProduct, setSelectedProduct] = useState<string>(productOptions[0]?.id || '');
   const [regimeData, setRegimeData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (productOptions.length > 0 && !productOptions.some(p => p.id === selectedProduct)) {
@@ -57,21 +58,38 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
   }, [productOptions, selectedProduct]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchRegimes = async () => {
-      setIsLoading(true);
-      try {
-        const res = await fetch(`/api/regimes?product_id=${selectedProduct}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRegimeData(data);
-        }
-      } catch (err) {
-        console.error('Failed to load regimes:', err);
-      } finally {
+      if (!selectedProduct) {
+        setRegimeData(null);
         setIsLoading(false);
+        setErrorMsg(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setRegimeData(null);
+      setErrorMsg(null);
+      try {
+        const res = await fetch(`/api/regimes?product_id=${encodeURIComponent(selectedProduct)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Demand-regime analysis is unavailable for this product.');
+        setRegimeData(data);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setRegimeData(null);
+          setErrorMsg(err.message || 'Failed to load demand regimes.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
+
     fetchRegimes();
+    return () => controller.abort();
   }, [selectedProduct]);
 
   const summary = regimeData?.summary || [];
@@ -108,6 +126,17 @@ export const RegimesView: React.FC<RegimesViewProps> = ({ metadata, onOpenUpload
           </select>
         </div>
       </div>
+
+      {errorMsg && (
+        <div role="alert" className="p-3 bg-rose-950/30 border border-rose-800 rounded text-xs text-rose-200">
+          {errorMsg}
+        </div>
+      )}
+      {isLoading && (
+        <div className="p-3 bg-slate-900 border border-slate-800 rounded text-xs text-slate-400">
+          Recomputing demand regimes for the selected product…
+        </div>
+      )}
 
       {/* Threshold & Methodology Banner */}
       <div className="p-4 bg-[#0F172A] border border-slate-800 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
