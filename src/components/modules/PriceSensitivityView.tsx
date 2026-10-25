@@ -59,28 +59,37 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
   }, [productOptions, selectedProduct]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchElasticity = async () => {
-      if (!selectedProduct) return;
-      setIsLoading(true);
+      setResult(null);
       setErrorMsg(null);
-      try {
-        const res = await fetch(`/api/price-sensitivity?product_id=${selectedProduct}`);
-        if (res.ok) {
-          const data = await res.json();
-          setResult(data);
-        } else {
-          const err = await res.json();
-          setResult(null);
-          setErrorMsg(err.error || 'Price sensitivity unavailable for this product.');
-        }
-      } catch (err: any) {
-        setResult(null);
-        setErrorMsg(err.message || 'Failed to load price sensitivity.');
-      } finally {
+      if (!selectedProduct) {
         setIsLoading(false);
+        setErrorMsg('Select a product from the active dataset.');
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/price-sensitivity?product_id=${encodeURIComponent(selectedProduct)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Price sensitivity unavailable for this product.');
+        setResult(data);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setResult(null);
+          setErrorMsg(err.message || 'Failed to load price sensitivity.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
+
     fetchElasticity();
+    return () => controller.abort();
   }, [selectedProduct]);
 
   // Downsample scatter data for clean chart rendering
