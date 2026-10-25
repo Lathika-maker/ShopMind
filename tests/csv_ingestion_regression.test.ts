@@ -124,7 +124,7 @@ const badNumericCSV = `date,product_id,units_sold,price,unit_cost
 const badNumericRes = parseAndValidateCSV(badNumericCSV, undefined);
 assert(badNumericRes.success === false, 'Test 5: Bad numerics must fail');
 assert(badNumericRes.errors.some(e => e.includes('non-numeric units sold')), 'Test 5: Reports non-numeric units');
-assert(badNumericRes.errors.some(e => e.includes('Invalid negative units sold')), 'Test 5: Reports negative units');
+assert(badNumericRes.errors.some(e => e.includes('Negative units sold')), 'Test 5: Reports negative units');
 assert(badNumericRes.errors.some(e => e.includes('Price must be a non-negative number')), 'Test 5: Reports negative price');
 assert(badNumericRes.errors.some(e => e.includes('Cost must be a non-negative number')), 'Test 5: Reports negative cost');
 console.log('✓ TEST 5 PASSED: Precise actionable errors reported for invalid numerics');
