@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Upload, X, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
-import { inferColumnMapping, parseCSVText } from '../../services/csvParser.ts';
+import { inferColumnMapping, parseCSVText, type ColumnMappingConfig } from '../../services/csvParser.ts';
 
 interface CSVUploadModalProps {
   isOpen: boolean;
@@ -27,7 +27,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
   const [errorDetails, setErrorDetails] = useState<string[]>([]);
 
   // Column mapping state
-  const [mapping, setMapping] = useState({
+  const [mapping, setMapping] = useState<ColumnMappingConfig>({
     date: '',
     product_id: '',
     product_name: '',
@@ -40,6 +40,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     competitor_price: '',
     revenue: '',
     promo_active: '',
+    negative_units_policy: 'reject',
   });
 
   if (!isOpen) return null;
@@ -127,6 +128,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       competitor_price: '',
       revenue: '',
       promo_active: '',
+      negative_units_policy: 'reject',
     });
   };
 
@@ -184,6 +186,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
       competitor_price: mappingGuess.competitor_price || '',
       revenue: mappingGuess.revenue || '',
       promo_active: mappingGuess.promo_active || '',
+      negative_units_policy: 'reject',
     });
 
     const previewRows = rows.slice(1, 6).map(values => {
@@ -496,6 +499,26 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                       <option value="">-- Not provided --</option>
                       {headers.map(h => <option key={h} value={h}>{h}</option>)}
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Negative Quantity Handling
+                    </label>
+                    <select
+                      value={mapping.negative_units_policy || 'reject'}
+                      onChange={(e) => setMapping({
+                        ...mapping,
+                        negative_units_policy: e.target.value as 'reject' | 'exclude',
+                      })}
+                      className="w-full px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-white"
+                    >
+                      <option value="reject">Reject upload if negative quantities appear</option>
+                      <option value="exclude">Exclude negative rows (returns / cancellations)</option>
+                    </select>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      Excluding rows omits those records from every analysis and reports the excluded count. It does not net returns against sales.
+                    </p>
                   </div>
 
                   <div>
