@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { DataRecord, DatasetMetadata } from '../../types/retail.ts';
 import { EmptyDatasetState } from '../ui/EmptyDatasetState.tsx';
-import { formatCurrency, currencyLabel, currencyContext } from '../../services/formatting.ts';
+import { formatCurrency, currencyLabel } from '../../services/formatting.ts';
 
 interface DataExplorerViewProps {
   metadata: DatasetMetadata | null;
