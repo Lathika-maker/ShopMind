@@ -891,8 +891,17 @@ app.get('/api/constraints', (_req: Request, res: Response) => {
 });
 
 app.put('/api/constraints', (req: Request, res: Response) => {
-  activeConstraints = { ...activeConstraints, ...req.body };
-  // Re-evaluate feasibility of saved scenarios
+  const body = req.body || {};
+  const proposed: BusinessConstraints = {
+    ...activeConstraints,
+    ...body,
+    weights: { ...activeConstraints.weights, ...(body.weights || {}) },
+  };
+  const validationError = validateBusinessConstraints(proposed);
+  if (validationError) return res.status(400).json({ error: validationError });
+
+  activeConstraints = proposed;
+  // Re-evaluate stored scenarios so all modules read consistent feasibility flags.
   savedScenarios = savedScenarios.map(scen => {
     const input: ScenarioInput = {
       id: scen.scenario_id,
