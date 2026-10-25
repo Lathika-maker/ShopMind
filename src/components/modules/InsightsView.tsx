@@ -24,23 +24,32 @@ interface InsightsViewProps {
 export const InsightsView: React.FC<InsightsViewProps> = ({ onNavigate }) => {
   const [insights, setInsights] = useState<InsightItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+    setInsights([]);
+    setErrorMsg(null);
+
     const fetchInsights = async () => {
-      setIsLoading(true);
       try {
-        const res = await fetch('/api/insights');
-        if (res.ok) {
-          const data = await res.json();
-          setInsights(data);
+        const res = await fetch('/api/insights', { signal: controller.signal });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Insights are unavailable for the active dataset.');
+        setInsights(Array.isArray(data) ? data : []);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setInsights([]);
+          setErrorMsg(err.message || 'Failed to load insights.');
         }
-      } catch (err) {
-        console.error('Failed to load insights:', err);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
+
     fetchInsights();
+    return () => controller.abort();
   }, []);
 
   return (
@@ -63,6 +72,12 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ onNavigate }) => {
           <span>{insights.length} Empirical Insights Active</span>
         </div>
       </div>
+
+      {errorMsg && (
+        <div role="alert" className="p-3 bg-rose-950/30 border border-rose-800 rounded text-xs text-rose-200">
+          {errorMsg}
+        </div>
+      )}
 
       {/* Insights Cards List */}
       <div className="space-y-4">
