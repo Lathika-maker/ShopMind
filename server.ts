@@ -1,3 +1,4 @@
+import 'dotenv/config';
 /**
  * SHOPMIND — Production-Grade Full-Stack Retail Intelligence Server
  * 
