@@ -129,8 +129,11 @@ function getProductBaseline(productId: string): ProductDemandBaseline | null {
     ? productRecords.filter(record => Number.isFinite(record.price) && record.price > 0)
     : [];
   const distinctPrices = new Set(pricedRecords.map(record => Math.round(record.price * 100) / 100));
+  const pricedUnitWeight = pricedRecords.reduce((sum, record) => sum + Math.max(0, record.units_sold), 0);
   const basePrice = pricedRecords.length > 0
-    ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
+    ? (pricedUnitWeight > 0
+        ? pricedRecords.reduce((sum, record) => sum + record.price * Math.max(0, record.units_sold), 0) / pricedUnitWeight
+        : pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length)
     : null;
   const elasticityResult = distinctPrices.size >= 2 && pricedRecords.length >= 10
     ? computePriceElasticity(productRecords, activeMetadata?.available_fields)
