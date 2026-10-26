@@ -179,6 +179,9 @@ export interface DemandRegimeSummary {
 export interface PriceSensitivityResult {
   product_id: string;
   product_name: string;
+  observation_grain?: 'daily_product';
+  transaction_rows?: number;
+  product_day_observations?: number;
   elasticity: number; // percentage change in demand per 1% change in price
   elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic';
   confidence_interval_95: [number, number];
