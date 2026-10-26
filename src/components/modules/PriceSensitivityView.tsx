@@ -210,13 +210,13 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
               Price-Demand Scatter Plot & Econometric Fitted Response
             </h3>
             <p className="text-xs text-slate-400">
-              Transaction observations across varying promotional discounts and base price levels.
+              One aggregated observation per recorded product-day. Missing calendar dates are not imputed as zero demand.
             </p>
             <p className="text-[10px] text-slate-500 mt-1">{currencyContext(metadata?.currency_code)}</p>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
             <span className="flex items-center gap-1.5 text-slate-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Transaction POS Points
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-400" /> Recorded Product-Day Points
             </span>
             <span className="flex items-center gap-1.5 text-[#E2B774]">
               <span className="w-2.5 h-2.5 rounded-sm bg-[#E2B774]" /> Fitted OLS Demand Curve
