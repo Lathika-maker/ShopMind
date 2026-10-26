@@ -149,16 +149,15 @@ export function parseCSVText(content: string): string[][] {
  */
 export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   const mapping: ColumnMappingConfig = {};
-  const candidates = headers.map((raw, index) => ({
+  const candidates = headers.map((raw) => ({
     raw,
-    index,
     // Split CamelCase headers before lowercasing (e.g. InvoiceDate → invoice_date).
     clean: raw.trim().replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
   }));
   const pick = (field: keyof ColumnMappingConfig, test: (header: string) => boolean) => {
     if (mapping[field]) return;
     const found = candidates.find(candidate => test(candidate.clean));
-    if (found) (mapping as Record<string, unknown>)[field] = found.raw;
+    if (found) Object.assign(mapping, { [field]: found.raw });
   };
 
   // Exact and high-confidence names are matched first to avoid overlapping fields,
