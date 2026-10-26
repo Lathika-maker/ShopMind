@@ -333,6 +333,57 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
         </div>
       )}
 
+      {forecastResult?.benchmarks?.naive_last && (
+        <section className="bg-[#0F172A] border border-slate-800 rounded-lg p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Model Benchmark — Same Chronological Holdout</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Compares the selected model with a naive last-observation baseline on the same test dates; lower MAE, RMSE and MAPE are better.
+              </p>
+            </div>
+            <span className={`px-2 py-1 rounded text-[10px] font-semibold ${forecastResult.metrics.test_sample_size < 30
+              ? 'bg-amber-950/40 text-amber-300 border border-amber-800/70'
+              : 'bg-slate-800 text-slate-300'}`}>
+              {forecastResult.metrics.test_sample_size < 30
+                ? 'Small holdout — interpret cautiously'
+                : 'Holdout size ≥ 30'}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-slate-400 border-b border-slate-800">
+                  <th className="text-left py-2 pr-4">Metric</th>
+                  <th className="text-right py-2 px-3">Selected model</th>
+                  <th className="text-right py-2 px-3">Naive baseline</th>
+                  <th className="text-right py-2 pl-3">Comparison</th>
+                </tr>
+              </thead>
+              <tbody>
+                {([
+                  { label: 'MAE (units)', model: forecastResult.metrics.mae, baseline: forecastResult.benchmarks.naive_last.metrics.mae },
+                  { label: 'RMSE (units)', model: forecastResult.metrics.rmse, baseline: forecastResult.benchmarks.naive_last.metrics.rmse },
+                  { label: 'MAPE (%)', model: forecastResult.metrics.mape, baseline: forecastResult.benchmarks.naive_last.metrics.mape },
+                ] as const).map(row => (
+                  <tr key={row.label} className="border-b border-slate-800/70 last:border-0">
+                    <td className="py-2 pr-4 text-slate-300">{row.label}</td>
+                    <td className="py-2 px-3 text-right text-white font-mono">{row.model}</td>
+                    <td className="py-2 px-3 text-right text-slate-300 font-mono">{row.baseline}</td>
+                    <td className={`py-2 pl-3 text-right font-mono ${row.model < row.baseline ? 'text-emerald-400' : row.model > row.baseline ? 'text-amber-300' : 'text-slate-400'}`}>
+                      {row.model < row.baseline ? 'Better' : row.model > row.baseline ? 'Worse' : 'Tied'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-slate-500">
+            This is an evaluation benchmark, not proof of future performance. With fewer than 30 test observations, differences can be unstable. The naive baseline uses the most recently observed demand value in a rolling one-step-ahead evaluation.
+          </p>
+        </section>
+      )}
+
       {/* Actual vs Predicted Time Series Chart */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800">
