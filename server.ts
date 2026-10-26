@@ -636,8 +636,16 @@ app.post('/api/forecasting/train', (req: Request, res: Response) => {
     }
 
     const forecast = trainAndEvaluateForecast(dailyRecords, algorithm, train_ratio, activeMetadata.available_fields);
+    const naiveBaseline = trainAndEvaluateForecast(dailyRecords, 'naive_last', train_ratio, activeMetadata.available_fields);
     res.json({
       ...forecast,
+      benchmarks: {
+        naive_last: {
+          model_id: naiveBaseline.model_id,
+          metrics: naiveBaseline.metrics,
+          same_chronological_holdout: true,
+        },
+      },
       observation_grain: 'daily_product',
       transaction_rows: transactionRecords.length,
       daily_observations: dailyRecords.length,
