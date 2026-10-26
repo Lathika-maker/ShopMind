@@ -270,9 +270,14 @@ export default function App() {
       <CSVUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onUploadSuccess={() => {
-          fetchDataset();
-          fetchScenarios();
+        onUploadSuccess={async () => {
+          // Clear visible results immediately so a previous dataset cannot flash
+          // while the freshly uploaded dataset metadata is being reloaded.
+          setMetadata(null);
+          setQuality(null);
+          setScenarios([]);
+          await fetchDataset();
+          await fetchScenarios();
           setActiveTab('explorer');
         }}
       />
