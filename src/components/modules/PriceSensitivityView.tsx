@@ -162,6 +162,22 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
         </div>
       )}
 
+      {result && result.observation_grain === 'daily_product' && (
+        <div className="p-3 bg-slate-900/70 border border-slate-800 rounded text-xs text-slate-300 flex flex-wrap gap-x-6 gap-y-2">
+          <div>
+            <span className="text-slate-500">Source transaction rows</span>
+            <div className="font-mono text-white mt-0.5">{result.transaction_rows?.toLocaleString() ?? 'N/A'}</div>
+          </div>
+          <div>
+            <span className="text-slate-500">Model observations</span>
+            <div className="font-mono text-white mt-0.5">{result.product_day_observations?.toLocaleString() ?? result.sample_size.toLocaleString()} recorded product-days</div>
+          </div>
+          <div className="text-slate-500 flex-1 min-w-[240px]">
+            Repeated transactions for a SKU on the same date are aggregated before fitting; sample N reflects the daily modelling grain, not the raw transaction count.
+          </div>
+        </div>
+      )}
+
       {/* Key Econometric Metrics */}
       {result && result.sufficiency !== 'insufficient' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -179,8 +195,8 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             label="95% Confidence Interval"
             value={`[${result.confidence_interval_95[0]}, ${result.confidence_interval_95[1]}]`}
             subtext="Uncertainty range"
-            contextNote="Standard normal error bounds"
-            trend={{ value: 'Rigorous bounds', neutral: true }}
+            contextNote="Approximate normal-based interval"
+            trend={{ value: 'Approximate bounds', neutral: true }}
           />
           <KPICard
             label="Statistical Significance"
@@ -188,7 +204,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             subtext={result.p_value <= 0.05 ? 'Statistically Significant (p < 0.05)' : 'Not Significant'}
             contextNote={`Sample N = ${result.sample_size}`}
             trend={{
-              value: result.p_value <= 0.05 ? 'High Confidence' : 'Weak Signal',
+              value: result.p_value <= 0.05 ? 'p ≤ 0.05' : 'p > 0.05',
               isPositive: result.p_value <= 0.05,
             }}
           />
