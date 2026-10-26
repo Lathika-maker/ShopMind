@@ -27,6 +27,7 @@ import {
   summarizeDateCoverage,
 } from '../services/calculations.ts';
 import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
+import { answerDatasetQuestion, DatasetQuestionError } from '../services/aiAnalysis.ts';
 
 // Runtime starts empty. Only a validated user-uploaded CSV activates a dataset.
 let activeMetadata: DatasetMetadata | null = null;
@@ -842,6 +843,42 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       return sendJson(res, 200, activeConstraints);
     }).catch((error: any) => {
       return sendJson(res, 400, { error: error?.message || 'Invalid constraint update.' });
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/analysis/ask') {
+    parseBody(req).then(async (body) => {
+      const metadata = activeMetadata;
+      if (!metadata || activeRecords.length === 0) {
+        return sendJson(res, 400, { error: 'Upload a valid CSV dataset before asking for AI analysis.' });
+      }
+      const question = typeof body?.question === 'string' ? body.question.trim() : '';
+      if (question.length < 5 || question.length > 500) {
+        return sendJson(res, 400, { error: 'Enter a question between 5 and 500 characters.' });
+      }
+      const productId = typeof body?.product_id === 'string' && body.product_id.trim()
+        ? body.product_id.trim()
+        : undefined;
+      try {
+        const answer = await answerDatasetQuestion({
+          question,
+          productId,
+          records: activeRecords,
+          metadata,
+          constraints: activeConstraints,
+          scenarios: savedScenarios,
+        });
+        return sendJson(res, 200, answer);
+      } catch (error: any) {
+        const status = error instanceof DatasetQuestionError ? error.statusCode : 502;
+        return sendJson(res, status, {
+          error: error?.message || 'AI analysis failed. Try rephrasing the question.',
+          code: error instanceof DatasetQuestionError ? error.code : 'analysis_failed',
+        });
+      }
+    }).catch((error: any) => {
+      return sendJson(res, 400, { error: error?.message || 'Invalid analysis request.' });
     });
     return;
   }
