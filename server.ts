@@ -215,7 +215,10 @@ function computeQualityReport(
     const min = sorted[0];
     const max = sorted[sorted.length - 1];
     const mean = sorted.reduce((sum, value) => sum + value, 0) / sorted.length;
-    const median = sorted[Math.floor(sorted.length / 2)];
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0
+      ? (sorted[middle - 1] + sorted[middle]) / 2
+      : sorted[middle];
     const variance = sorted.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / sorted.length;
     return {
       column,
