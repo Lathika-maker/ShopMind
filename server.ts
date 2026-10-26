@@ -35,6 +35,7 @@ import {
   ColumnMappingConfig,
 } from './src/services/csvParser.ts';
 import { answerDatasetQuestion, DatasetQuestionError } from './src/services/aiAnalysis.ts';
+import { generateEmpiricalInsights } from './src/services/insights.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1009,106 +1010,13 @@ app.post('/api/analysis/ask', async (req: Request, res: Response) => {
 
 // 14. Explainable Insights Generator (Originating strictly from active dataset & models)
 app.get('/api/insights', (_req: Request, res: Response) => {
-  const insights: InsightItem[] = [];
-
-  if (!activeMetadata || activeRecords.length === 0) {
-    return res.json([]);
-  }
-
-  const uniqueProductIds = Array.from(new Set(activeRecords.map(r => r.product_id)));
-
-  // Insight A: High Elasticity Opportunity from active products
-  for (const pid of uniqueProductIds) {
-    const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    if (activeMetadata.available_fields?.price === true &&
-        prodRecords.length >= 15 && prodRecords.some(r => r.price > 0)) {
-      const elast = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
-      if (elast.sufficiency !== 'insufficient' && elast.elasticity < -1.5) {
-        const prodName = prodRecords[0].product_name || pid;
-        insights.push({
-          id: `ins_price_elasticity_${pid}`,
-          category: 'price_sensitivity',
-          title: `High Price Elasticity in ${prodName}`,
-          observed: `Estimated empirical elasticity of ${elast.elasticity} (95% CI: [${elast.confidence_interval_95.join(', ')}], p = ${elast.p_value}).`,
-          supporting_data: `Sample of ${elast.sample_size} observations with R² = ${elast.r_squared} controlling for promotions.`,
-          why_it_matters: 'Demand responds more than proportionately to price adjustments, indicating that strategic promotional markdown may drive volume expansion.',
-          possible_action: 'Test a controlled markdown window to verify unit volume elasticity before committing forward purchase orders.',
-          uncertainty_limitations: 'Elasticity is an empirical regression association. Confounders and macro conditions may shift curve.',
-          severity: 'high',
-        });
-        break; // Show top elastic product
-      }
-    }
-  }
-
-  // Insight B: Demand Regime Clustering in active products
-  for (const pid of uniqueProductIds) {
-    const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    const dailyRecords = aggregateDailyDemand(prodRecords);
-    if (dailyRecords.length >= 14) {
-      const regimes = detectDemandRegimes(dailyRecords, 14);
-      const highRegime = regimes.summary.find(s => s.regime === 'high');
-      if (highRegime && highRegime.percentage >= 15) {
-        const prodName = prodRecords[0].product_name || pid;
-        insights.push({
-          id: `ins_demand_regime_${pid}`,
-          category: 'demand_regime',
-          title: `Demand Regime Clustering Detected for ${prodName}`,
-          observed: `${highRegime.percentage}% of recorded product-day observations are classified as High Demand (Z > +0.95).`,
-          supporting_data: `A 14-observation rolling window identified average high-regime demand of ${highRegime.average_demand} units per recorded product-day. Calendar-date gaps are not imputed.`,
-          why_it_matters: 'Fixed buffer stock risks stock-outs during regime transitions into volume surges.',
-          possible_action: 'Transition from fixed buffer stocks to regime-adaptive replenishment schedules.',
-          uncertainty_limitations: 'The rolling Z-score uses recorded product-day observations; missing calendar dates are not imputed, so irregular source coverage can affect interpretation.',
-          severity: 'medium',
-        });
-        break;
-      }
-    }
-  }
-
-  // Insight C: Stock-out Risk in Saved Scenarios
-  const riskyScenario = savedScenarios.find(s => s.stock_out_risk_percent > 15);
-  if (riskyScenario) {
-    insights.push({
-      id: 'ins_scenario_stockout',
-      category: 'inventory_risk',
-      title: `Stock-Out Vulnerability in '${riskyScenario.name}'`,
-      observed: `Simulated stock-out risk reaches ${riskyScenario.stock_out_risk_percent}% with ${riskyScenario.unmet} unmet customer orders.`,
-      supporting_data: `Assumed demand of ${riskyScenario.demand} units against available inventory ceiling of ${riskyScenario.inventory} units.`,
-      why_it_matters: `Causes an estimated ${formatCurrency(riskyScenario.unmet * (riskyScenario.selling_price - riskyScenario.unit_cost), activeMetadata?.currency_code)} in lost gross margin contribution. ${currencyContext(activeMetadata?.currency_code)}`,
-      possible_action: 'Allocate emergency buffer inventory or adjust promotional budget to preserve fulfillment rates.',
-      uncertainty_limitations: 'Assumes unfulfilled shoppers do not backorder or substitute for adjacent catalog items.',
-      severity: 'high',
-    });
-  }
-
-  // Insight D: Model Chronological Performance
-  for (const pid of uniqueProductIds) {
-    const prodRecords = activeRecords.filter(r => r.product_id === pid);
-    const dailyRecords = aggregateDailyDemand(prodRecords);
-    if (dailyRecords.length >= 10) {
-      try {
-        const lrForecast = trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields);
-        const prodName = prodRecords[0].product_name || pid;
-        insights.push({
-          id: `ins_forecast_metrics_${pid}`,
-          category: 'forecast_quality',
-          title: `Chronological Forecast Benchmark (${prodName})`,
-          observed: `Multiple Linear Regression achieves MAE = ${lrForecast.metrics.mae} units and RMSE = ${lrForecast.metrics.rmse} units on out-of-sample test period.`,
-          supporting_data: `Evaluated on ${lrForecast.metrics.test_sample_size} chronological test days (${lrForecast.metrics.test_period.start} to ${lrForecast.metrics.test_period.end}) with zero target leakage.`,
-          why_it_matters: 'Provides a dependable baseline for replenishment safety buffer calculations with documented residual distribution.',
-          possible_action: 'Incorporate competitor price difference and promotional calendar as forecast features.',
-          uncertainty_limitations: 'Model residuals may widen during extreme markdown events.',
-          severity: 'low',
-        });
-        break;
-      } catch {
-        // Skip if cannot forecast
-      }
-    }
-  }
-
-  res.json(insights);
+  if (!activeMetadata || activeRecords.length === 0) return res.json([]);
+  return res.json(generateEmpiricalInsights(
+    activeRecords,
+    activeMetadata,
+    savedScenarios,
+    activeConstraints
+  ));
 });
 
 // ==========================================
