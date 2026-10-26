@@ -33,6 +33,7 @@ import {
   parseAndValidateCSV,
   ColumnMappingConfig,
 } from './src/services/csvParser.ts';
+import { answerDatasetQuestion, DatasetQuestionError } from './src/services/aiAnalysis.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -945,6 +946,37 @@ app.put('/api/constraints', (req: Request, res: Response) => {
     return simulateScenario(input, scen.demand, scen.product_name, scen.demand_source, activeConstraints);
   });
   res.json(activeConstraints);
+});
+
+app.post('/api/analysis/ask', async (req: Request, res: Response) => {
+  const metadata = activeMetadata;
+  if (!metadata || activeRecords.length === 0) {
+    return res.status(400).json({ error: 'Upload a valid CSV dataset before asking for AI analysis.' });
+  }
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  if (question.length < 5 || question.length > 500) {
+    return res.status(400).json({ error: 'Enter a question between 5 and 500 characters.' });
+  }
+  const productId = typeof req.body?.product_id === 'string' && req.body.product_id.trim()
+    ? req.body.product_id.trim()
+    : undefined;
+  try {
+    const answer = await answerDatasetQuestion({
+      question,
+      productId,
+      records: activeRecords,
+      metadata,
+      constraints: activeConstraints,
+      scenarios: savedScenarios,
+    });
+    return res.json(answer);
+  } catch (error: any) {
+    const status = error instanceof DatasetQuestionError ? error.statusCode : 502;
+    return res.status(status).json({
+      error: error?.message || 'AI analysis failed. Try rephrasing the question.',
+      code: error instanceof DatasetQuestionError ? error.code : 'analysis_failed',
+    });
+  }
 });
 
 // 14. Explainable Insights Generator (Originating strictly from active dataset & models)
