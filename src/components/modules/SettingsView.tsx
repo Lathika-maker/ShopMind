@@ -20,7 +20,7 @@ import { currencyLabel, currencyContext } from '../../services/formatting.ts';
 interface SettingsViewProps {
   metadata: DatasetMetadata | null;
   constraints: BusinessConstraints;
-  onUpdateConstraints: (c: BusinessConstraints) => void;
+  onUpdateConstraints: (c: BusinessConstraints) => Promise<boolean>;
   onResetData: () => void;
   onOpenUpload: () => void;
 }
@@ -37,17 +37,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [maxCeiling, setMaxCeiling] = useState<number>(constraints.max_price_ceiling);
   const [minFloor, setMinFloor] = useState<number>(constraints.min_price_floor);
   const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleSave = () => {
-    onUpdateConstraints({
-      ...constraints,
-      min_profit_margin_pct: minMargin,
-      max_stock_out_risk_pct: maxStockout,
-      max_price_ceiling: maxCeiling,
-      min_price_floor: minFloor,
-    });
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+  const handleSave = async () => {
+    setSaveError(null);
+    setIsSaved(false);
+
+    if (![minMargin, maxStockout, maxCeiling, minFloor].every(Number.isFinite)) {
+      setSaveError('All thresholds must be valid finite numbers.');
+      return;
+    }
+    if (minMargin < 0 || minMargin > 100) {
+      setSaveError('Minimum profit margin must be between 0% and 100%.');
+      return;
+    }
+    if (maxStockout < 0 || maxStockout > 100) {
+      setSaveError('Maximum stock-out risk must be between 0% and 100%.');
+      return;
+    }
+    if (minFloor < 0 || maxCeiling < 0) {
+      setSaveError('Price floor and ceiling cannot be negative.');
+      return;
+    }
+    if (maxCeiling > 0 && minFloor > maxCeiling) {
+      setSaveError('Price floor cannot exceed the enabled price ceiling.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const saved = await onUpdateConstraints({
+        ...constraints,
+        min_profit_margin_pct: minMargin,
+        max_stock_out_risk_pct: maxStockout,
+        max_price_ceiling: maxCeiling,
+        min_price_floor: minFloor,
+      });
+      if (!saved) {
+        setSaveError('The server rejected the settings update. Your previous settings remain active.');
+        return;
+      }
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    } catch {
+      setSaveError('Settings could not be applied. Your previous settings remain active.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -68,11 +105,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <button
           onClick={handleSave}
+          disabled={isSaving}
           className="px-3.5 py-1.5 text-xs font-semibold text-[#0B1120] bg-gradient-to-r from-[#F3E5CA] via-[#E2B774] to-[#C49B58] hover:brightness-105 active:scale-95 rounded transition-all cursor-pointer shadow-sm"
         >
-          {isSaved ? '✓ Settings Applied' : 'Apply Global Settings'}
+          {isSaving ? 'Applying…' : isSaved ? '✓ Settings Applied' : 'Apply Global Settings'}
         </button>
       </div>
+
+      {saveError && (
+        <div role="alert" className="p-3 bg-rose-950/30 border border-rose-800 rounded text-xs text-rose-200">
+          {saveError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Business Constraints */}
