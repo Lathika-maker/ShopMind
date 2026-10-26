@@ -244,6 +244,27 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     }
   };
 
+  const mappedFieldSummary = [
+    mapping.date && `Date ← ${mapping.date}`,
+    mapping.product_id && `Product ID ← ${mapping.product_id}`,
+    mapping.product_name && `Product name ← ${mapping.product_name}`,
+    mapping.category && `Category / region ← ${mapping.category}`,
+    mapping.units_sold && `Units sold ← ${mapping.units_sold}`,
+    mapping.price && `Unit price ← ${mapping.price}`,
+    mapping.revenue && `Revenue ← ${mapping.revenue}`,
+    mapping.unit_cost && `Unit cost ← ${mapping.unit_cost}`,
+    mapping.discount_pct && `Discount ← ${mapping.discount_pct}`,
+    mapping.inventory_on_hand && `Inventory ← ${mapping.inventory_on_hand}`,
+    mapping.promo_active && `Promotion flag ← ${mapping.promo_active}`,
+    mapping.competitor_price && `Competitor price ← ${mapping.competitor_price}`,
+  ].filter((value): value is string => Boolean(value));
+
+  const unavailableBusinessFields = [
+    !mapping.price && 'unit price',
+    !mapping.unit_cost && 'unit cost',
+    !mapping.inventory_on_hand && 'inventory',
+  ].filter((value): value is string => Boolean(value));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
@@ -566,6 +587,29 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                <div className="text-xs font-semibold text-slate-200">Automatic mapping summary</div>
+                {mappedFieldSummary.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {mappedFieldSummary.map((label) => (
+                      <span key={label} className="rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-300">{label}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500">No matching columns detected yet. Select the relevant fields above.</p>
+                )}
+                {!mapping.product_id && mapping.product_name && (
+                  <p className="text-[11px] leading-relaxed text-slate-400">
+                    No separate Product ID column was found. SHOPMIND will group records by the mapped Product Name; it will not invent an ID.
+                  </p>
+                )}
+                {unavailableBusinessFields.length > 0 && (
+                  <p className="text-[11px] leading-relaxed text-amber-200/80">
+                    Not present in the CSV: {unavailableBusinessFields.join(', ')}. Analyses requiring these values remain unavailable until the data or an explicit scenario assumption supplies them.
+                  </p>
+                )}
               </div>
 
               {/* Data Preview */}
