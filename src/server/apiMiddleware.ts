@@ -468,6 +468,19 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100;
     };
 
+    const weightedAverage = (field: 'price' | 'unit_cost' | 'discount_pct' | 'competitor_price') => {
+      if (activeMetadata?.available_fields?.[field] !== true) return null;
+      const valid = records.filter(record =>
+        Number.isFinite(record[field]) && record[field] >= 0
+      );
+      if (valid.length === 0) return null;
+      const totalWeight = valid.reduce((sum, record) => sum + Math.max(0, record.units_sold), 0);
+      if (totalWeight <= 0) {
+        return Math.round(valid.reduce((sum, record) => sum + record[field], 0) / valid.length * 100) / 100;
+      }
+      return Math.round(valid.reduce((sum, record) => sum + record[field] * Math.max(0, record.units_sold), 0) / totalWeight * 100) / 100;
+    };
+
     const dates = records.map(record => record.date).filter(Boolean).sort();
     const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
     const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
@@ -497,15 +510,15 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       mean_units_per_observed_product_day: baseline?.meanUnitsPerObservedProductDay ?? null,
       demand_baseline_method: 'Mean units per distinct recorded product-day extrapolated to 30 days; missing dates are not treated as zero sales.',
       estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
-      average_unit_price: average('price'),
+      average_unit_price: weightedAverage('price'),
       derived_unit_price_from_revenue: activeMetadata.available_fields?.price === true ? null : derivedUnitRevenue,
       derived_unit_price_note: activeMetadata.available_fields?.price === true || derivedUnitRevenue === null
         ? null
         : 'Calculated as total recorded revenue divided by total units sold; used only as a scenario price seed, never to fit price elasticity.',
-      average_unit_cost: average('unit_cost'),
+      average_unit_cost: weightedAverage('unit_cost'),
       average_inventory_on_hand: average('inventory_on_hand'),
-      average_discount_pct: average('discount_pct'),
-      average_competitor_price: average('competitor_price'),
+      average_discount_pct: weightedAverage('discount_pct'),
+      average_competitor_price: weightedAverage('competitor_price'),
       average_total_revenue: average('revenue'),
       demand_estimation_method: baseline?.elasticity === null ? 'historical_average' : 'empirical_price_elasticity',
       available_fields: activeMetadata.available_fields || {},
