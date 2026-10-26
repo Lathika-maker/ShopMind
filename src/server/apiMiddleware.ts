@@ -733,16 +733,20 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before price-sensitivity analysis.' });
     }
     const targetProd = (parsed.query.product_id as string) || activeRecords[0]?.product_id;
-    const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-    if (activeMetadata.available_fields?.price !== true || !prodRecords.some(record => record.price > 0)) {
+    const transactionRecords = activeRecords.filter(record => record.product_id === targetProd);
+    if (activeMetadata.available_fields?.price !== true || !transactionRecords.some(record => record.price > 0)) {
       return sendJson(res, 400, {
         error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
       });
     }
-    const result = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
+    const productDayRecords = aggregateDailyDemand(transactionRecords);
+    const result = computePriceElasticity(productDayRecords, activeMetadata.available_fields);
     return sendJson(res, 200, {
       product_id: targetProd,
-      product_name: prodRecords[0]?.product_name,
+      product_name: transactionRecords[0]?.product_name,
+      observation_grain: 'daily_product',
+      transaction_rows: transactionRecords.length,
+      product_day_observations: productDayRecords.length,
       ...result,
     });
   }
