@@ -562,7 +562,15 @@ export const DecisionStudioView: React.FC<DecisionStudioViewProps> = ({
                 {productSummary.unobserved_calendar_days > 0
                   ? ' Dates without rows are not assumed to be zero-sales days.'
                   : ''}
+                {productSummary.demand_baseline_observation_days !== null && productSummary.demand_baseline_observation_days !== undefined
+                  ? ` Used ${productSummary.demand_baseline_observation_days} recorded product-days.`
+                  : ''}
               </p>
+              {productSummary.demand_baseline_warning && (
+                <div role="note" className="p-3 mt-2 bg-amber-950/30 border border-amber-800/70 rounded text-[11px] text-amber-200">
+                  {productSummary.demand_baseline_warning}
+                </div>
+              )}
 
             </div>
           )}
