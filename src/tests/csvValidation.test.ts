@@ -34,6 +34,7 @@ import {
 } from '../services/calculations.ts';
 import { formatCurrency } from '../services/formatting.ts';
 import { buildDatasetQuestionContext, DatasetQuestionError } from '../services/aiAnalysis.ts';
+import { generateEmpiricalInsights } from '../services/insights.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -836,4 +837,35 @@ console.log('\n--- 18. Testing currency-neutral price constraint messages ---');
   console.log('  ✓ Constraint messages avoid currency-symbol assumptions.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (18/18 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 19: Shared insight generation is evidence-gated and benchmarked
+// =========================================================================
+console.log('\n--- 19. Testing shared empirical insight generation ---');
+
+{
+  const rows = ['date,product_id,units_sold'];
+  for (let day = 1; day <= 12; day++) {
+    rows.push(`2025-02-${String(day).padStart(2, '0')},SKU-INSIGHT,${day * 2 + (day % 3)}`);
+  }
+  const parsed = parseAndValidateCSV(rows.join('\n'), undefined, 'Insight Fixture');
+  assert(parsed.success === true, 'Forecast insight fixture parses');
+
+  const constraints: BusinessConstraints = {
+    min_profit_margin_pct: 25,
+    max_stock_out_risk_pct: 15,
+    min_inventory_coverage_units: 50,
+    min_price_floor: 15,
+    max_price_ceiling: 500,
+    weights: { profit_weight: 0.5, stockout_weight: 0.3, leftover_weight: 0.2 },
+  };
+  const findings = generateEmpiricalInsights(parsed.records!, parsed.metadata!, [], constraints);
+  const forecastFinding = findings.find(item => item.category === 'forecast_quality');
+  assert(Boolean(forecastFinding), 'Forecast finding is generated when 10 or more daily observations exist');
+  assert(forecastFinding!.observed.includes('naive last-observation'), 'Forecast finding compares the selected model with the naive benchmark');
+  assert(forecastFinding!.uncertainty_limitations.includes('fewer than 30'), 'Small holdout caveat is included');
+  assert(!findings.some(item => item.category === 'price_sensitivity'), 'No price elasticity finding is fabricated when unit price is unavailable');
+
+  console.log('  ✓ Shared insight findings include a baseline comparison and suppress unsupported price claims.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (19/19 TEST SUITES)\n=============================================================\n');
