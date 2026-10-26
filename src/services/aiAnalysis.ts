@@ -36,6 +36,40 @@ export interface DatasetQuestionAnswer {
   aggregatesIncluded: string[];
 }
 
+const recentDatasetQuestionRequests: number[] = [];
+const DATASET_QUESTION_WINDOW_MS = 60_000;
+
+/**
+ * Process-local back-pressure for the optional paid AI endpoint.
+ * The cap is configurable because deployments differ in expected throughput.
+ */
+export function consumeDatasetQuestionCapacity(now = Date.now()): {
+  allowed: boolean;
+  limit: number;
+  retryAfterSeconds: number;
+} {
+  const configuredLimit = Number(process.env.GEMINI_RATE_LIMIT_PER_MINUTE || 20);
+  const limit = Number.isFinite(configuredLimit) && configuredLimit >= 1
+    ? Math.min(1000, Math.floor(configuredLimit))
+    : 20;
+  const windowStart = now - DATASET_QUESTION_WINDOW_MS;
+
+  while (recentDatasetQuestionRequests.length > 0 && recentDatasetQuestionRequests[0] <= windowStart) {
+    recentDatasetQuestionRequests.shift();
+  }
+
+  if (recentDatasetQuestionRequests.length >= limit) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((recentDatasetQuestionRequests[0] + DATASET_QUESTION_WINDOW_MS - now) / 1000)
+    );
+    return { allowed: false, limit, retryAfterSeconds };
+  }
+
+  recentDatasetQuestionRequests.push(now);
+  return { allowed: true, limit, retryAfterSeconds: 0 };
+}
+
 export class DatasetQuestionError extends Error {
   statusCode: number;
   code: string;
@@ -325,8 +359,28 @@ export async function answerDatasetQuestion(input: DatasetQuestionInput): Promis
       },
     });
   } catch (error: any) {
-    const message = error?.message || 'The Gemini analysis request failed.';
-    throw new DatasetQuestionError(`Gemini request failed: ${message}`, 502, 'gemini_request_failed');
+    const providerStatus = Number(error?.status ?? error?.statusCode ?? error?.response?.status);
+    if (providerStatus === 429) {
+      throw new DatasetQuestionError(
+        'The AI provider is temporarily rate-limiting requests. Wait briefly and retry.',
+        429,
+        'gemini_rate_limited'
+      );
+    }
+    if (providerStatus === 401 || providerStatus === 403) {
+      throw new DatasetQuestionError(
+        'The AI provider rejected the server credentials. Check GEMINI_API_KEY and the configured model in the server environment.',
+        503,
+        'gemini_credentials_rejected'
+      );
+    }
+    // Do not forward raw provider exception text to the public client; it can
+    // include implementation details or request metadata that should stay server-side.
+    throw new DatasetQuestionError(
+      'The AI analysis request failed. Check the server configuration and logs, then retry.',
+      502,
+      'gemini_request_failed'
+    );
   }
 
   const answer = response.text?.trim();
