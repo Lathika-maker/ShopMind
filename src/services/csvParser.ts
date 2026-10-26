@@ -175,9 +175,6 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   pick('promo_active', h => ['promo', 'promotion', 'promo_active', 'promotion_active', 'campaign', 'campaign_active'].includes(h) || /(^|_)(promo_active|promotion_active|campaign_active)$/.test(h));
   pick('competitor_price', h => ['competitor_price', 'competitorprice', 'comp_price', 'competitor_unit_price'].includes(h) || /(^|_)(competitor_price|comp_price)$/.test(h));
 
-  // A single product-name column can serve as an identifier only when no dedicated
-  // product ID exists; this is an explicit identity fallback, not an invented value.
-  if (!mapping.product_id && mapping.product_name) mapping.product_id = mapping.product_name;
   return mapping;
 }
 /**
