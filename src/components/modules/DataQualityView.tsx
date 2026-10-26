@@ -71,20 +71,20 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
           trend={{ value: quality.completeness_score >= 95 ? 'Strong' : 'Review needed', isPositive: quality.completeness_score >= 95 }}
         />
         <KPICard
-          label="Records Audited"
+          label="Source Rows Audited"
           value={quality.total_records.toLocaleString()}
-          subtext={`${quality.valid_records.toLocaleString()} rows after duplicate count`}
-          contextNote="Active uploaded dataset"
+          subtext={`${quality.valid_records.toLocaleString()} distinct normalized row signatures`}
+          contextNote="Duplicate signatures are flagged, not deleted"
           trend={{
-            value: quality.total_records ? `${Math.round((quality.valid_records / quality.total_records) * 100)}% retained` : 'No records',
+            value: quality.total_records ? `${Math.round((quality.valid_records / quality.total_records) * 100)}% unique signatures` : 'No records',
             isPositive: quality.valid_records === quality.total_records,
           }}
         />
         <KPICard
-          label="Duplicate Product-Date Rows"
+          label="Exact Duplicate Records"
           value={quality.duplicate_count}
-          subtext="Product + Date key"
-          contextNote="Duplicate-key check"
+          subtext="Matching normalized business fields"
+          contextNote="Flagged for review; kept in the active dataset"
           trend={{ value: quality.duplicate_count === 0 ? 'None detected' : 'Review duplicates', isPositive: quality.duplicate_count === 0 }}
         />
         <KPICard
