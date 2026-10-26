@@ -665,7 +665,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     }
     const result = detectDemandRegimes(dailyRecords, 14);
     const forecast = dailyRecords.length >= 10
-      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields)
+      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata?.available_fields)
       : null;
     const resMap = new Map((forecast?.residuals || []).map(r => [r.date, Math.abs(r.residual)]));
     const errorByRegime: Record<'low' | 'normal' | 'high', { sumErr: number; count: number }> = {
@@ -687,7 +687,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
     }));
     return sendJson(res, 200, {
       product_id: targetProd,
-      product_name: prodRecords[0]?.product_name,
+      product_name: transactionRecords[0]?.product_name,
       ...result,
       model_error_by_regime,
       observation_grain: 'daily_product',
