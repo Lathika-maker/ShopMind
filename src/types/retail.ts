@@ -123,6 +123,13 @@ export interface ForecastResult {
   daily_observations?: number;
   date_coverage?: DateCoverageSummary;
   available_features?: Record<string, boolean>;
+  benchmarks?: {
+    naive_last: {
+      model_id: string;
+      metrics: ForecastMetrics;
+      same_chronological_holdout: boolean;
+    };
+  };
   model_id: string;
   product_id: string;
   product_name: string;
