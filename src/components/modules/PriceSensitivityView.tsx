@@ -210,7 +210,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             contextNote={`Sample N = ${result.sample_size}`}
             trend={{
               value: result.p_value <= 0.05 ? 'p ≤ 0.05' : 'p > 0.05',
-              isPositive: result.p_value <= 0.05,
+              neutral: true,
             }}
           />
           <KPICard
