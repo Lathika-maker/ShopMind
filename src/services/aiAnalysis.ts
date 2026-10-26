@@ -52,6 +52,11 @@ export function consumeDatasetQuestionCapacity(now = Date.now()): {
   const limit = Number.isFinite(configuredLimit) && configuredLimit >= 1
     ? Math.min(1000, Math.floor(configuredLimit))
     : 20;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.startsWith('MY_')) {
+    // An unconfigured AI feature must report the configuration error, not a rate limit.
+    return { allowed: true, limit, retryAfterSeconds: 0 };
+  }
   const windowStart = now - DATASET_QUESTION_WINDOW_MS;
 
   while (recentDatasetQuestionRequests.length > 0 && recentDatasetQuestionRequests[0] <= windowStart) {
