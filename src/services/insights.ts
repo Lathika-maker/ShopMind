@@ -188,7 +188,7 @@ export function generateEmpiricalInsights(
       severity: 'high',
     });
   } else if (scenarios.length > 0) {
-    const best = [...scenarios].sort((a, b) => b.decision_score - a.decision_score)[0];
+    const best = [...scenarios].sort((a, b) => (b.decision_score ?? 0) - (a.decision_score ?? 0))[0];
     insights.push({
       id: 'ins_scenario_feasibility',
       category: 'decision_opportunity',
