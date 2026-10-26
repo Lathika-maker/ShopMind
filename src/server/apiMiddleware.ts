@@ -389,16 +389,51 @@ function computeQualityReport(
   };
 }
 
+const MAX_REQUEST_BODY_BYTES = 50 * 1024 * 1024;
+
+class RequestBodyError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+    this.name = 'RequestBodyError';
+  }
+}
+
 function parseBody(req: IncomingMessage): Promise<any> {
   return new Promise((resolve) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
-    req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch {
-        resolve({});
+    let receivedBytes = 0;
+    let tooLarge = false;
+
+    req.on('data', (chunk: Buffer | string) => {
+      if (tooLarge) return;
+      const chunkBytes = typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+      receivedBytes += chunkBytes;
+      if (receivedBytes > MAX_REQUEST_BODY_BYTES) {
+        tooLarge = true;
+        body = '';
+        return;
       }
+      body += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    });
+
+    req.on('end', () => {
+      if (tooLarge) {
+        resolve(new RequestBodyError(413, 'Request body exceeds the 50 MB server limit.'));
+        return;
+      }
+      if (!body.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        resolve(new RequestBodyError(400, 'Request body must be valid JSON.'));
+      }
+    });
+
+    req.on('error', () => {
+      resolve(new RequestBodyError(400, 'Request body could not be read. Retry the request.'));
     });
   });
 }
@@ -407,6 +442,12 @@ function sendJson(res: ServerResponse, status: number, data: any) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(data));
+}
+
+function respondToBodyError(body: unknown, res: ServerResponse): boolean {
+  if (!(body instanceof RequestBodyError)) return false;
+  sendJson(res, body.statusCode, { error: body.message, code: body.statusCode === 413 ? 'payload_too_large' : 'invalid_json' });
+  return true;
 }
 
 export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next?: () => void) {
@@ -595,6 +636,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/dataset/upload') {
     parseBody(req).then((body) => {
+      if (respondToBodyError(body, res)) return;
       const { name, csv_text, mapping } = body;
       if (typeof csv_text !== 'string' || !csv_text.trim()) {
         return sendJson(res, 400, {
@@ -646,6 +688,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/forecasting/train') {
     parseBody(req).then((body) => {
+      if (respondToBodyError(body, res)) return;
       if (!activeMetadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before forecasting.' });
       }
@@ -757,6 +800,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/scenarios/simulate') {
     parseBody(req).then((input: ScenarioInput) => {
+      if (respondToBodyError(input, res)) return;
       if (!activeMetadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before simulating a scenario.' });
       }
@@ -788,6 +832,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/scenarios') {
     parseBody(req).then((input: ScenarioInput) => {
+      if (respondToBodyError(input, res)) return;
       if (!activeMetadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'No active dataset. Upload a CSV before creating a commercial scenario.' });
       }
@@ -851,6 +896,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'PUT' && pathname === '/api/constraints') {
     parseBody(req).then(body => {
+      if (respondToBodyError(body, res)) return;
       const proposed: BusinessConstraints = {
         ...activeConstraints,
         ...body,
@@ -883,6 +929,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
   if (req.method === 'POST' && pathname === '/api/analysis/ask') {
     parseBody(req).then(async (body) => {
+      if (respondToBodyError(body, res)) return;
       const metadata = activeMetadata;
       if (!metadata || activeRecords.length === 0) {
         return sendJson(res, 400, { error: 'Upload a valid CSV dataset before asking for AI analysis.' });
