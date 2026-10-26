@@ -761,7 +761,7 @@ export function computePriceElasticity(
   availableFields?: Record<string, boolean>
 ): {
   elasticity: number;
-  elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic';
+  elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic' | 'positive_association';
   confidence_interval_95: [number, number];
   p_value: number;
   r_squared: number;
