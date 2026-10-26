@@ -185,10 +185,15 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
             label="Price Elasticity (β₁)"
             value={result.elasticity.toFixed(2)}
             subtext="Δ% demand per 1% price change"
-            contextNote={result.elasticity_label.replace('_', ' ')}
+            contextNote={result.elasticity_label.replace(/_/g, ' ')}
             trend={{
-              value: Math.abs(result.elasticity) > 1 ? 'Elastic Demand' : 'Inelastic Demand',
-              isPositive: Math.abs(result.elasticity) > 1,
+              value: result.elasticity > 0
+                ? 'Positive association'
+                : Math.abs(result.elasticity) > 1
+                  ? 'Price-elastic association'
+                  : 'Price-inelastic association',
+              isPositive: result.elasticity < 0 && Math.abs(result.elasticity) > 1,
+              neutral: result.elasticity > 0,
             }}
           />
           <KPICard
@@ -201,7 +206,7 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
           <KPICard
             label="Statistical Significance"
             value={`p = ${result.p_value}`}
-            subtext={result.p_value <= 0.05 ? 'Statistically Significant (p < 0.05)' : 'Not Significant'}
+            subtext={result.p_value <= 0.05 ? 'Approx. p ≤ 0.05' : 'Approx. p > 0.05'}
             contextNote={`Sample N = ${result.sample_size}`}
             trend={{
               value: result.p_value <= 0.05 ? 'p ≤ 0.05' : 'p > 0.05',
@@ -288,11 +293,11 @@ export const PriceSensitivityView: React.FC<PriceSensitivityViewProps> = ({ meta
           <div>
             Controlled Confounders:{' '}
             <span className="text-slate-200 font-mono">
-              {result?.confounders_controlled.join(' · ') || 'Promotions, Weekend Day'}
+              {result?.confounders_controlled.join(' · ') || 'No fitted controls available'}
             </span>
           </div>
           <div className="text-[11px] text-slate-500 font-mono">
-            Sample Sufficiency: <span className="text-emerald-400 uppercase font-semibold">{result?.sufficiency}</span>
+            Sample Sufficiency: <span className={result?.sufficiency === 'insufficient' ? 'text-amber-400 uppercase font-semibold' : 'text-emerald-400 uppercase font-semibold'}>{result?.sufficiency || 'not computed'}</span>
           </div>
         </div>
       </div>
