@@ -153,7 +153,7 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
     raw,
     index,
     // Split CamelCase headers before lowercasing (e.g. InvoiceDate → invoice_date).
-    clean: raw.trim().replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[\\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
+    clean: raw.trim().replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
   }));
   const pick = (field: keyof ColumnMappingConfig, test: (header: string) => boolean) => {
     if (mapping[field]) return;
