@@ -1,4 +1,9 @@
-import 'dotenv/config';
+import
+  const capacity = consumeDatasetQuestionCapacity();
+  if (!capacity.allowed) {
+    const message = `AI analysis is temporarily rate-limited to ${capacity.limit} requests per server instance per minute. Retry in ${capacity.retryAfterSeconds} seconds.`;
+    return res.status(429).json({ error: message, code: 'analysis_rate_limited', retry_after_seconds: capacity.retryAfterSeconds });
+  } 'dotenv/config';
 /**
  * SHOPMIND — Production-Grade Full-Stack Retail Intelligence Server
  * 
@@ -34,7 +39,7 @@ import {
   parseAndValidateCSV,
   ColumnMappingConfig,
 } from './src/services/csvParser.ts';
-import { answerDatasetQuestion, DatasetQuestionError } from './src/services/aiAnalysis.ts';
+import { answerDatasetQuestion, DatasetQuestionError, consumeDatasetQuestionCapacity } from './src/services/aiAnalysis.ts';
 import { generateEmpiricalInsights } from './src/services/insights.ts';
 
 const __filename = fileURLToPath(import.meta.url);
