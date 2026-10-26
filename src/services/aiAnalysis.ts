@@ -146,11 +146,12 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
   const dailyModelRows = aggregateDailyDemand(modelRows);
 
   let priceSensitivity: Record<string, unknown> | null = null;
-  if (metadata.available_fields?.price === true && modelRows.length >= 15) {
-    const estimated = computePriceElasticity(modelRows, metadata.available_fields);
+  if (metadata.available_fields?.price === true && dailyModelRows.length >= 15) {
+    const estimated = computePriceElasticity(dailyModelRows, metadata.available_fields);
     if (estimated.sufficiency !== 'insufficient') {
       priceSensitivity = {
         sample_size: estimated.sample_size,
+        observation_grain: 'one observation per recorded product-day',
         elasticity: estimated.elasticity,
         confidence_interval_95: estimated.confidence_interval_95,
         p_value: estimated.p_value,
