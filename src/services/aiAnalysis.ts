@@ -119,8 +119,18 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
     ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
     : dateValues.length;
 
+  const products = summarizeProduct(records, metadata);
+  const selectedRows = productId ? records.filter(record => record.product_id === productId) : [];
+  if (productId && selectedRows.length === 0) {
+    throw new DatasetQuestionError('The selected product is not part of the active dataset.', 404, 'product_not_found');
+  }
+  const scopeRecords = productId ? selectedRows : records;
+  const scopedProductSummaries = productId
+    ? summarizeProduct(selectedRows, metadata)
+    : products.slice(0, 15);
+
   const monthly = new Map<string, { units: number; rows: number; revenue: number }>();
-  for (const record of records) {
+  for (const record of scopeRecords) {
     const month = record.date.slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(month)) continue;
     const bucket = monthly.get(month) || { units: 0, rows: 0, revenue: 0 };
@@ -130,11 +140,6 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
     monthly.set(month, bucket);
   }
 
-  const products = summarizeProduct(records, metadata);
-  const selectedRows = productId ? records.filter(record => record.product_id === productId) : [];
-  if (productId && selectedRows.length === 0) {
-    throw new DatasetQuestionError('The selected product is not part of the active dataset.', 404, 'product_not_found');
-  }
   const modelRows = productId
     ? selectedRows
     : (products[0] ? records.filter(record => record.product_id === products[0].product_id) : []);
@@ -214,9 +219,9 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
       available_fields: metadata.available_fields || {},
       mapped_fields: metadata.mapped_fields || {},
     },
-    total_units_sold: sum(records.map(record => record.units_sold)),
+    total_units_sold: sum(scopeRecords.map(record => record.units_sold)),
     total_recorded_revenue: metadata.available_fields?.revenue === true
-      ? sum(records.map(record => record.revenue || 0))
+      ? sum(scopeRecords.map(record => record.revenue || 0))
       : null,
     monthly_recorded_demand: Array.from(monthly.entries()).sort(([a], [b]) => a.localeCompare(b))
       .slice(-18).map(([month, values]) => ({
@@ -227,7 +232,7 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
           ? Math.round(values.revenue * 100) / 100
           : null,
       })),
-    products_by_total_recorded_units: products.slice(0, productId ? 1 : 15),
+    products_by_total_recorded_units: scopedProductSummaries,
     product_scope: productId || 'whole_dataset; model diagnostics use the highest-volume product if eligible',
     model_diagnostics_for_scoped_product_or_highest_volume_product: {
       selected_product_id: modelRows[0]?.product_id || null,
