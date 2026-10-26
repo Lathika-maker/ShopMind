@@ -161,7 +161,9 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   ) => {
     if (mapping[field]) return;
     const found =
-      candidates.find(candidate => preferred.includes(candidate.clean)) ??
+      preferred
+        .map(name => candidates.find(candidate => candidate.clean === name))
+        .find(candidate => candidate !== undefined) ??
       candidates.find(candidate => test(candidate.clean));
     if (found) Object.assign(mapping, { [field]: found.raw });
   };
