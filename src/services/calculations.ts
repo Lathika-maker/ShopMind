@@ -840,18 +840,31 @@ export function computePriceElasticity(
     ssTot += Math.pow(y[i] - meanY, 2);
   }
 
-  const degreesOfFreedom = Math.max(1, n - 4);
+  const parameterCount = X[0].length;
+  const degreesOfFreedom = Math.max(1, n - parameterCount);
   const residualVariance = ssRes / degreesOfFreedom;
 
-  // Variance of beta_1 = residualVariance * (X^T X)^-1 [1][1]
-  // Approximate standard error of elasticity
-  const logP = valid.map(r => Math.log(r.price));
-  const meanLogP = logP.reduce((a, b) => a + b, 0) / n;
-  const ssLogP = logP.reduce((s, p) => s + Math.pow(p - meanLogP, 2), 0) || 1e-4;
-  const se_elasticity = Math.sqrt(Math.max(1e-6, residualVariance / ssLogP));
+  // Use the price-slope diagonal of the same regularized (X'X)^-1 used by the
+  // fitted model. This accounts for correlation between log-price and controls.
+  const xtx: number[][] = Array.from({ length: parameterCount }, () => Array(parameterCount).fill(0));
+  for (let i = 0; i < parameterCount; i++) {
+    for (let j = 0; j < parameterCount; j++) {
+      let sum = 0;
+      for (let row = 0; row < n; row++) sum += X[row][i] * X[row][j];
+      if (i === j) sum += 1e-5; // Match solveLinearRegression's ridge stabilization.
+      xtx[i][j] = sum;
+    }
+  }
+  const inverseXtX = invertMatrix(xtx);
+  const slopeVarianceScale = inverseXtX?.[1]?.[1];
+  const se_elasticity = Number.isFinite(slopeVarianceScale)
+    ? Math.sqrt(Math.max(1e-6, residualVariance * Math.max(0, slopeVarianceScale!)))
+    : Number.POSITIVE_INFINITY;
 
-  const t_stat = Math.abs(rawElasticity) / se_elasticity;
-  // Approximate p-value for large sample normal distribution
+  const t_stat = Number.isFinite(se_elasticity) && se_elasticity > 0
+    ? Math.abs(rawElasticity) / se_elasticity
+    : 0;
+  // Approximate two-sided normal p-value; this remains a large-sample approximation.
   const p_value = Math.max(0.0001, Math.min(1.0, 2 * (1 - normalCdf(t_stat))));
   const r_squared = ssTot > 0 ? Math.max(0, Math.min(1, 1 - (ssRes / ssTot))) : 0;
 
