@@ -876,7 +876,7 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
 
     // 3. Chronological Forecast Model Benchmark at daily grain
     const forecast = dailyRecords.length >= 10
-      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata.available_fields)
+      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata?.available_fields)
       : null;
 
     // 4. Commercial Scenario Constraint & Downside Audit
