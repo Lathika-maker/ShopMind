@@ -891,14 +891,17 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       if (question.length < 5 || question.length > 500) {
         return sendJson(res, 400, { error: 'Enter a question between 5 and 500 characters.' });
       }
+      const productId = typeof body?.product_id === 'string' && body.product_id.trim()
+        ? body.product_id.trim()
+        : undefined;
+      if (productId && !activeRecords.some(record => record.product_id === productId)) {
+        return sendJson(res, 404, { error: 'The selected product is not part of the active dataset.', code: 'product_not_found' });
+      }
       const capacity = consumeDatasetQuestionCapacity();
       if (!capacity.allowed) {
         const message = `AI analysis is temporarily rate-limited to ${capacity.limit} requests per server instance per minute. Retry in ${capacity.retryAfterSeconds} seconds.`;
         return sendJson(res, 429, { error: message, code: 'analysis_rate_limited', retry_after_seconds: capacity.retryAfterSeconds });
       }
-      const productId = typeof body?.product_id === 'string' && body.product_id.trim()
-        ? body.product_id.trim()
-        : undefined;
       try {
         const answer = await answerDatasetQuestion({
           question,
