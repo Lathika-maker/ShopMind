@@ -1,9 +1,4 @@
-import
-  const capacity = consumeDatasetQuestionCapacity();
-  if (!capacity.allowed) {
-    const message = `AI analysis is temporarily rate-limited to ${capacity.limit} requests per server instance per minute. Retry in ${capacity.retryAfterSeconds} seconds.`;
-    return res.status(429).json({ error: message, code: 'analysis_rate_limited', retry_after_seconds: capacity.retryAfterSeconds });
-  } 'dotenv/config';
+import 'dotenv/config';
 /**
  * SHOPMIND — Production-Grade Full-Stack Retail Intelligence Server
  * 
@@ -985,6 +980,11 @@ app.post('/api/analysis/ask', async (req: Request, res: Response) => {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   if (question.length < 5 || question.length > 500) {
     return res.status(400).json({ error: 'Enter a question between 5 and 500 characters.' });
+  }
+  const capacity = consumeDatasetQuestionCapacity();
+  if (!capacity.allowed) {
+    const message = `AI analysis is temporarily rate-limited to ${capacity.limit} requests per server instance per minute. Retry in ${capacity.retryAfterSeconds} seconds.`;
+    return res.status(429).json({ error: message, code: 'analysis_rate_limited', retry_after_seconds: capacity.retryAfterSeconds });
   }
   const productId = typeof req.body?.product_id === 'string' && req.body.product_id.trim()
     ? req.body.product_id.trim()
