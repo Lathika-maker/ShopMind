@@ -272,7 +272,7 @@ export async function answerDatasetQuestion(input: DatasetQuestionInput): Promis
   }
 
   const context = buildDatasetQuestionContext(input);
-  const model = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   const ai = new GoogleGenAI({ apiKey });
   let response;
   try {
