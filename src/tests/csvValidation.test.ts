@@ -943,4 +943,34 @@ console.log('\n--- 21. Testing server-side AI request cap ---');
   console.log('  ✓ Gemini requests are capped and capacity returns after the minute window.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (21/21 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 22: Positive price-demand association is not labelled elastic
+// =========================================================================
+console.log('\n--- 22. Testing positive price-demand association labelling ---');
+
+{
+  const records: DataRecord[] = [];
+  for (let day = 1; day <= 24; day++) {
+    records.push({
+      id: `POSITIVE-${day}`,
+      date: new Date(Date.UTC(2025, 3, day)).toISOString().slice(0, 10),
+      product_id: 'SKU-POSITIVE-ASSOCIATION',
+      product_name: 'Positive Association Fixture',
+      category: '',
+      units_sold: 10 + day * 2,
+      price: 8 + day * 0.4,
+      unit_cost: 0,
+      discount_pct: 0,
+      promo_active: false,
+      inventory_on_hand: 0,
+      competitor_price: 0,
+    });
+  }
+  const estimate = computePriceElasticity(records, { price: true, promo_active: false });
+  assert(estimate.elasticity > 0, 'Fixture produces a positive fitted price-demand coefficient');
+  assert(estimate.elasticity_label === 'positive_association', 'Positive coefficient gets a direction-aware label');
+
+  console.log('  ✓ Positive coefficients are not described as conventional elastic demand.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (22/22 TEST SUITES)\n=============================================================\n');
