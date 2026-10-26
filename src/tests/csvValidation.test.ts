@@ -432,10 +432,17 @@ console.log('\n--- 9. Testing Column Mapping & Header Inferences ---');
   assert(summaryMapping.date === 'date', 'date maps automatically');
   assert(summaryMapping.category === 'region', 'region maps to category');
   assert(summaryMapping.product_name === 'product', 'product maps to product name');
-  assert(summaryMapping.product_id === 'product', 'product is used as ID only when no separate ID exists');
+  assert(summaryMapping.product_id === undefined, 'product name is not misleadingly shown as a separate product ID');
   assert(summaryMapping.revenue === 'revenue', 'total revenue maps separately');
   assert(summaryMapping.units_sold === 'units', 'units maps to units sold');
   assert(summaryMapping.price === undefined, 'total revenue must not be mistaken for unit price');
+  assert(summaryMapping.unit_cost === undefined, 'cost stays unmapped when no cost column exists');
+  assert(summaryMapping.inventory_on_hand === undefined, 'inventory stays unmapped when no inventory column exists');
+
+  const idAndNameMapping = inferColumnMapping(['date', 'sku', 'product_name', 'quantity', 'unit_price']);
+  assert(idAndNameMapping.product_id === 'sku', 'dedicated SKU is selected as product ID');
+  assert(idAndNameMapping.product_name === 'product_name', 'separate product name remains mapped independently');
+  assert(idAndNameMapping.price === 'unit_price', 'unit price is mapped only from a unit-price-like header');
 
   const summaryResult = parseAndValidateCSV(summaryCSV, undefined, 'Retail Summary');
   assert(summaryResult.success === true, 'Summary CSV with date and units should be accepted for demand analysis');
