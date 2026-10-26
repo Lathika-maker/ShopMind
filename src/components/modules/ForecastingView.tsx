@@ -211,7 +211,7 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
         </div>
 
         <button
-          onClick={runTraining}
+          onClick={() => runTraining()}
           disabled={isLoading}
           className="px-3.5 py-1.5 bg-[#E2B774] hover:bg-[#d8a860] text-[#0B1120] font-semibold rounded flex items-center gap-1.5 cursor-pointer transition-colors"
         >
