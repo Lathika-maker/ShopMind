@@ -370,11 +370,14 @@ function computeQualityReport(
     : 0;
 
   const dates = records.map(record => record.date).filter(Boolean).sort();
-  const firstMs = dates.length ? Date.parse(String(dates[0]) + 'T00:00:00Z') : NaN;
-  const lastMs = dates.length ? Date.parse(String(dates[dates.length - 1]) + 'T00:00:00Z') : NaN;
+  const uniqueDates = Array.from(new Set(dates));
+  const firstMs = uniqueDates.length ? Date.parse(String(uniqueDates[0]) + 'T00:00:00Z') : NaN;
+  const lastMs = uniqueDates.length ? Date.parse(String(uniqueDates[uniqueDates.length - 1]) + 'T00:00:00Z') : NaN;
   const date_range_days = Number.isFinite(firstMs) && Number.isFinite(lastMs)
     ? Math.max(1, Math.floor((lastMs - firstMs) / 86400000) + 1)
     : 0;
+  const unique_recorded_dates = uniqueDates.length;
+  const unobserved_calendar_days = Math.max(0, date_range_days - unique_recorded_dates);
 
   return {
     total_records: records.length,
@@ -383,6 +386,8 @@ function computeQualityReport(
     missing_values_by_column: missingCols,
     negative_values_by_column: negativeCols,
     date_range_days,
+    unique_recorded_dates,
+    unobserved_calendar_days,
     completeness_score,
     issues,
     summary_stats,
