@@ -152,7 +152,8 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   const candidates = headers.map((raw, index) => ({
     raw,
     index,
-    clean: raw.toLowerCase().trim().replace(/[\\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
+    // Split CamelCase headers before lowercasing (e.g. InvoiceDate → invoice_date).
+    clean: raw.trim().replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[\\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
   }));
   const pick = (field: keyof ColumnMappingConfig, test: (header: string) => boolean) => {
     if (mapping[field]) return;
@@ -165,8 +166,8 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   pick('date', h => ['date', 'day', 'timestamp', 'datetime', 'invoice_date', 'order_date', 'transaction_date', 'sales_date'].includes(h) || /(^|_)(date|datetime|timestamp)$/.test(h));
   pick('product_id', h => ['product_id', 'productid', 'sku', 'sku_id', 'item_id', 'itemid', 'stockcode', 'stock_code', 'product_code', 'item_code', 'variant_id', 'barcode'].includes(h));
   pick('product_name', h => ['product_name', 'productname', 'item_name', 'itemname', 'description', 'product', 'item', 'title'].includes(h) || /(^|_)(product_name|item_name|description|title)$/.test(h));
-  pick('category', h => ['category', 'product_category', 'department', 'dept', 'region', 'store', 'store_name', 'country', 'location'].includes(h) || /(^|_)(category|department|region|store|country)$/.test(h));
-  pick('units_sold', h => ['units', 'unit_sold', 'units_sold', 'quantity', 'qty', 'quantity_sold', 'sales_quantity', 'volume', 'demand', 'demand_units'].includes(h) || /(^|_)(units_sold|quantity|qty|demand|volume)$/.test(h));
+  pick('category', h => ['category', 'product_category', 'department', 'dept', 'family', 'region', 'store', 'store_name', 'country', 'location'].includes(h) || /(^|_)(category|department|family|region|store|country)$/.test(h));
+  pick('units_sold', h => ['units', 'unit_sold', 'units_sold', 'quantity', 'qty', 'quantity_sold', 'sales_quantity', 'volume', 'volume_sold', 'sales_volume', 'demand', 'demand_units'].includes(h) || /(^|_)(units_sold|quantity|qty|demand|volume)(_sold|_units)?$/.test(h));
   pick('revenue', h => ['revenue', 'sales_value', 'gross_sales', 'net_sales', 'total_sales', 'turnover', 'line_total', 'total_amount', 'amount'].includes(h) || /(^|_)(revenue|turnover|sales_value|total_amount)$/.test(h));
   pick('price', h => ['price', 'unit_price', 'selling_price', 'retail_price', 'sale_price', 'unitprice', 'sellingprice'].includes(h) || /(^|_)(unit_price|selling_price|retail_price|sale_price|price)$/.test(h));
   pick('unit_cost', h => ['unit_cost', 'cost', 'cogs', 'cost_price', 'purchase_price', 'wholesale_cost'].includes(h) || /(^|_)(unit_cost|cogs|cost_price)$/.test(h));
