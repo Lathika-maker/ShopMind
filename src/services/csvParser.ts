@@ -149,44 +149,37 @@ export function parseCSVText(content: string): string[][] {
  */
 export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
   const mapping: ColumnMappingConfig = {};
-  const lowerHeaders = headers.map(h => ({ raw: h, clean: h.toLowerCase().trim() }));
+  const candidates = headers.map((raw, index) => ({
+    raw,
+    index,
+    clean: raw.toLowerCase().trim().replace(/[\\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
+  }));
+  const pick = (field: keyof ColumnMappingConfig, test: (header: string) => boolean) => {
+    if (mapping[field]) return;
+    const found = candidates.find(candidate => test(candidate.clean));
+    if (found) (mapping as Record<string, unknown>)[field] = found.raw;
+  };
 
-  for (const { raw, clean } of lowerHeaders) {
-    if (!mapping.date && (clean.includes('date') || clean === 'day' || clean.includes('time'))) {
-      mapping.date = raw;
-    } else if (!mapping.product_id && (clean === 'product_id' || clean === 'sku' || clean === 'item_id' || clean === 'id' || clean.includes('product_id') || clean.includes('item_id') || clean.includes('sku') || clean.includes('stockcode') || clean.includes('stock_code') || clean.includes('item_code') || clean.includes('product_code') || clean === 'code')) {
-      mapping.product_id = raw;
-    } else if (!mapping.product_name && (clean.includes('title') || clean.includes('product_name') || clean.includes('item_name') || clean.includes('description') || clean === 'product' || clean === 'item' || clean.includes('name'))) {
-      mapping.product_name = raw;
-    } else if (!mapping.category && (clean.includes('cat') || clean.includes('dept') || clean.includes('group') || clean.includes('region') || clean.includes('location') || clean.includes('store') || clean.includes('country'))) {
-      mapping.category = raw;
-    } else if (!mapping.revenue && (clean === 'revenue' || clean.includes('revenue') || clean.includes('sales_value') || clean.includes('gross_sales') || clean.includes('net_sales') || clean.includes('total_sales') || clean.includes('turnover'))) {
-      mapping.revenue = raw;
-    } else if (!mapping.units_sold && (clean.includes('units') || clean.includes('sold') || clean.includes('demand') || clean.includes('sales') || clean.includes('qty') || clean.includes('quantity') || clean.includes('volume'))) {
-      mapping.units_sold = raw;
-    } else if (!mapping.unit_cost && (clean.includes('cost') || clean.includes('cogs'))) {
-      mapping.unit_cost = raw;
-    } else if (!mapping.competitor_price && (clean.includes('comp') || clean.includes('competitor'))) {
-      mapping.competitor_price = raw;
-    } else if (!mapping.price && (clean === 'price' || clean.includes('price') || clean.includes('retail'))) {
-      mapping.price = raw;
-    } else if (!mapping.discount_pct && (clean.includes('disc') || clean.includes('markdown'))) {
-      mapping.discount_pct = raw;
-    } else if (!mapping.inventory_on_hand && (clean.includes('inv') || (clean.includes('stock') && !clean.includes('code')) || clean.includes('on_hand'))) {
-      mapping.inventory_on_hand = raw;
-    } else if (!mapping.promo_active && (clean.includes('promo') || clean.includes('campaign'))) {
-      mapping.promo_active = raw;
-    }
-  }
+  // Exact and high-confidence names are matched first to avoid overlapping fields,
+  // e.g. "product" must not be mapped to both Product ID and Product Name.
+  pick('date', h => ['date', 'day', 'timestamp', 'datetime', 'invoice_date', 'order_date', 'transaction_date', 'sales_date'].includes(h) || /(^|_)(date|datetime|timestamp)$/.test(h));
+  pick('product_id', h => ['product_id', 'productid', 'sku', 'sku_id', 'item_id', 'itemid', 'stockcode', 'stock_code', 'product_code', 'item_code', 'variant_id', 'barcode'].includes(h));
+  pick('product_name', h => ['product_name', 'productname', 'item_name', 'itemname', 'description', 'product', 'item', 'title'].includes(h) || /(^|_)(product_name|item_name|description|title)$/.test(h));
+  pick('category', h => ['category', 'product_category', 'department', 'dept', 'region', 'store', 'store_name', 'country', 'location'].includes(h) || /(^|_)(category|department|region|store|country)$/.test(h));
+  pick('units_sold', h => ['units', 'unit_sold', 'units_sold', 'quantity', 'qty', 'quantity_sold', 'sales_quantity', 'volume', 'demand', 'demand_units'].includes(h) || /(^|_)(units_sold|quantity|qty|demand|volume)$/.test(h));
+  pick('revenue', h => ['revenue', 'sales_value', 'gross_sales', 'net_sales', 'total_sales', 'turnover', 'line_total', 'total_amount', 'amount'].includes(h) || /(^|_)(revenue|turnover|sales_value|total_amount)$/.test(h));
+  pick('price', h => ['price', 'unit_price', 'selling_price', 'retail_price', 'sale_price', 'unitprice', 'sellingprice'].includes(h) || /(^|_)(unit_price|selling_price|retail_price|sale_price|price)$/.test(h));
+  pick('unit_cost', h => ['unit_cost', 'cost', 'cogs', 'cost_price', 'purchase_price', 'wholesale_cost'].includes(h) || /(^|_)(unit_cost|cogs|cost_price)$/.test(h));
+  pick('discount_pct', h => ['discount', 'discount_pct', 'discount_percent', 'discount_percentage', 'markdown', 'markdown_pct'].includes(h) || /(^|_)(discount|discount_pct|discount_percent|markdown)$/.test(h));
+  pick('inventory_on_hand', h => ['inventory', 'inventory_on_hand', 'stock', 'stock_on_hand', 'on_hand', 'on_hand_qty', 'available_stock', 'available_inventory'].includes(h) || /(^|_)(inventory|stock_on_hand|on_hand)$/.test(h));
+  pick('promo_active', h => ['promo', 'promotion', 'promo_active', 'promotion_active', 'campaign', 'campaign_active'].includes(h) || /(^|_)(promo_active|promotion_active|campaign_active)$/.test(h));
+  pick('competitor_price', h => ['competitor_price', 'competitorprice', 'comp_price', 'competitor_unit_price'].includes(h) || /(^|_)(competitor_price|comp_price)$/.test(h));
 
-  // Fallback: If product_name found but not product_id
-  if (!mapping.product_id && mapping.product_name) {
-    mapping.product_id = mapping.product_name;
-  }
-
+  // A single product-name column can serve as an identifier only when no dedicated
+  // product ID exists; this is an explicit identity fallback, not an invented value.
+  if (!mapping.product_id && mapping.product_name) mapping.product_id = mapping.product_name;
   return mapping;
 }
-
 /**
  * Parse common retail numeric formats without guessing decimal conventions.
  * Accepts currency symbols, thousands separators, and an optional percent sign.
