@@ -33,7 +33,7 @@ import {
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
 import { formatCurrency } from '../services/formatting.ts';
-import { buildDatasetQuestionContext, DatasetQuestionError } from '../services/aiAnalysis.ts';
+import { buildDatasetQuestionContext, DatasetQuestionError, consumeDatasetQuestionCapacity } from '../services/aiAnalysis.ts';
 import { generateEmpiricalInsights } from '../services/insights.ts';
 import {
   DataRecord,
@@ -912,4 +912,35 @@ console.log('\n--- 20. Testing price elasticity grain for repeated same-day tran
   console.log('  ✓ Repeated same-day transactions no longer inflate elasticity sample N.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (20/20 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 21: Configurable Gemini request cap
+// =========================================================================
+console.log('\n--- 21. Testing server-side AI request cap ---');
+
+{
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldLimit = process.env.GEMINI_RATE_LIMIT_PER_MINUTE;
+  try {
+    process.env.GEMINI_API_KEY = 'unit-test-api-key';
+    process.env.GEMINI_RATE_LIMIT_PER_MINUTE = '2';
+    const start = Date.now() + 500;
+    const first = consumeDatasetQuestionCapacity(start);
+    const second = consumeDatasetQuestionCapacity(start + 1);
+    const third = consumeDatasetQuestionCapacity(start + 2);
+    const afterWindow = consumeDatasetQuestionCapacity(start + 60_001);
+
+    assert(first.allowed && second.allowed, 'Requests within configured capacity are allowed');
+    assert(!third.allowed && third.limit === 2, 'Requests above the configured cap are rejected');
+    assert(third.retryAfterSeconds > 0, 'Rate-limit response includes a retry delay');
+    assert(afterWindow.allowed, 'Capacity becomes available after the time window expires');
+  } finally {
+    if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = oldKey;
+    if (oldLimit === undefined) delete process.env.GEMINI_RATE_LIMIT_PER_MINUTE;
+    else process.env.GEMINI_RATE_LIMIT_PER_MINUTE = oldLimit;
+  }
+
+  console.log('  ✓ Gemini requests are capped and capacity returns after the minute window.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (21/21 TEST SUITES)\n=============================================================\n');
