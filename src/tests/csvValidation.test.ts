@@ -814,8 +814,7 @@ console.log('\n--- 18. Testing currency-neutral price constraint messages ---');
   });
   const floorMessage = result.violated_constraints.find(message => message.includes('configured floor'));
   assert(Boolean(floorMessage), 'Price-floor violation is returned');
-  assert(!floorMessage!.includes('
-), 'Constraint messages do not assume USD');
+  assert(!floorMessage!.includes(String.fromCharCode(36)), 'Constraint messages do not assume USD');
   assert(floorMessage!.includes('active dataset currency'), 'Constraint message explains its amount convention');
 
   console.log('  ✓ Constraint messages avoid currency-symbol assumptions.');
