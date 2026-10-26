@@ -27,7 +27,7 @@ import {
   summarizeDateCoverage,
 } from '../services/calculations.ts';
 import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
-import { answerDatasetQuestion, DatasetQuestionError } from '../services/aiAnalysis.ts';
+import { answerDatasetQuestion, DatasetQuestionError, consumeDatasetQuestionCapacity } from '../services/aiAnalysis.ts';
 import { generateEmpiricalInsights } from '../services/insights.ts';
 
 // Runtime starts empty. Only a validated user-uploaded CSV activates a dataset.
@@ -890,6 +890,11 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       const question = typeof body?.question === 'string' ? body.question.trim() : '';
       if (question.length < 5 || question.length > 500) {
         return sendJson(res, 400, { error: 'Enter a question between 5 and 500 characters.' });
+      }
+      const capacity = consumeDatasetQuestionCapacity();
+      if (!capacity.allowed) {
+        const message = `AI analysis is temporarily rate-limited to ${capacity.limit} requests per server instance per minute. Retry in ${capacity.retryAfterSeconds} seconds.`;
+        return sendJson(res, 429, { error: message, code: 'analysis_rate_limited', retry_after_seconds: capacity.retryAfterSeconds });
       }
       const productId = typeof body?.product_id === 'string' && body.product_id.trim()
         ? body.product_id.trim()
