@@ -134,7 +134,7 @@ export const InsightsView: React.FC<InsightsViewProps> = ({ metadata, onNavigate
             Explainable Insights & Governance Findings
           </h2>
           <div className="text-xs text-slate-400 mt-0.5">
-            Every finding includes observed data, significance, actionable test, and uncertainty bounds.
+            Each structured finding separates observed results, supporting evidence, possible action, and limitations. Confidence intervals or p-values appear only when a model estimates them.
           </div>
         </div>
 
