@@ -33,6 +33,7 @@ import {
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
 import { formatCurrency } from '../services/formatting.ts';
+import { buildDatasetQuestionContext, DatasetQuestionError } from '../services/aiAnalysis.ts';
 import {
   DataRecord,
   DatasetMetadata,
@@ -727,4 +728,65 @@ console.log('\n--- 16. Testing dataset currency selection and formatting ---');
   console.log('  ✓ Monetary values retain the uploader-selected currency or remain symbol-neutral.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (16/16 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 17: AI analysis context is aggregate-only and data-grounded
+// =========================================================================
+console.log('\n--- 17. Testing aggregate-only AI analysis context ---');
+
+{
+  const csv = `date,product_id,product_name,units_sold,price,revenue
+2025-01-01,SKU-A,Alpha Product,3,10,30
+2025-01-02,SKU-A,Alpha Product,4,11,44
+2025-01-03,SKU-A,Alpha Product,5,12,60
+2025-01-01,SKU-B,Beta Product,2,8,16`;
+  const parsed = parseAndValidateCSV(csv, undefined, 'AI Context Fixture');
+  assert(parsed.success === true, 'Context fixture parses as a valid dataset');
+
+  const constraints: BusinessConstraints = {
+    min_profit_margin_pct: 25,
+    max_stock_out_risk_pct: 15,
+    min_inventory_coverage_units: 50,
+    min_price_floor: 15,
+    max_price_ceiling: 500,
+    weights: { profit_weight: 0.5, stockout_weight: 0.3, leftover_weight: 0.2 },
+  };
+  const context = buildDatasetQuestionContext({
+    question: 'Which product has the highest recorded demand?',
+    records: parsed.records!,
+    metadata: parsed.metadata!,
+    constraints,
+    scenarios: [],
+  });
+  const json = JSON.stringify(context);
+  const datasetSummary = context.dataset as Record<string, any>;
+  const products = context.products_by_total_recorded_units as Array<Record<string, any>>;
+
+  assert(datasetSummary.transaction_rows === 4, 'Context includes source row count');
+  assert(datasetSummary.product_count === 2, 'Context includes product count');
+  assert(products[0].product_id === 'SKU-A', 'Products are ranked using recorded units');
+  assert(products[0].total_units_sold === 12, 'Product total units are aggregated');
+  assert(Array.isArray(context.monthly_recorded_demand), 'Context includes monthly demand aggregates');
+  assert(!json.includes('REC-0') && !json.includes('REC-1'), 'Raw record IDs are not transmitted in the context');
+  assert(!json.includes('raw_records'), 'Context does not include a raw-record collection');
+  assert((context.evidence_limitations as string[]).some(note => note.includes('raw transaction rows')), 'Context discloses that raw transaction rows are omitted');
+
+  let missingProductError: unknown = null;
+  try {
+    buildDatasetQuestionContext({
+      question: 'Explain the demand trend for a missing product.',
+      productId: 'NOT-IN-DATASET',
+      records: parsed.records!,
+      metadata: parsed.metadata!,
+      constraints,
+      scenarios: [],
+    });
+  } catch (error) {
+    missingProductError = error;
+  }
+  assert(missingProductError instanceof DatasetQuestionError, 'Unknown product scope is rejected explicitly');
+  assert((missingProductError as Error).message.includes('not part of the active dataset'), 'Unknown product scope has an actionable message');
+
+  console.log('  ✓ AI context uses aggregate evidence, excludes raw rows, and validates product scope.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (17/17 TEST SUITES)\n=============================================================\n');
