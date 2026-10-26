@@ -770,6 +770,22 @@ console.log('\n--- 17. Testing aggregate-only AI analysis context ---');
   assert(!json.includes('raw_records'), 'Context does not include a raw-record collection');
   assert((context.evidence_limitations as string[]).some(note => note.includes('raw transaction rows')), 'Context discloses that raw transaction rows are omitted');
 
+  const productScopedContext = buildDatasetQuestionContext({
+    question: 'Summarize recorded demand for Beta Product.',
+    productId: 'SKU-B',
+    records: parsed.records!,
+    metadata: parsed.metadata!,
+    constraints,
+    scenarios: [],
+  });
+  const scopedProducts = productScopedContext.products_by_total_recorded_units as Array<Record<string, any>>;
+  const scopedDataset = productScopedContext.dataset as Record<string, any>;
+  const scopedMonths = productScopedContext.monthly_recorded_demand as Array<Record<string, any>>;
+  assert(productScopedContext.total_units_sold === 2, 'Selected-product scope uses selected product units');
+  assert(scopedProducts.length === 1 && scopedProducts[0].product_id === 'SKU-B', 'Selected-product scope cannot display a different top product');
+  assert(scopedMonths.reduce((total, row) => total + row.recorded_units_sold, 0) === 2, 'Selected-product monthly totals use the selected product only');
+  assert(scopedDataset.transaction_rows === 4, 'Dataset metadata still transparently describes the full uploaded dataset');
+
   let missingProductError: unknown = null;
   try {
     buildDatasetQuestionContext({
