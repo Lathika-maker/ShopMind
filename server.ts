@@ -754,35 +754,28 @@ app.get('/api/regimes', (req: Request, res: Response) => {
 
 // 9. Price Sensitivity & Elasticity
 app.get('/api/price-sensitivity', (req: Request, res: Response) => {
-  try {
-    if (!activeMetadata || activeRecords.length === 0) {
-      return res.status(400).json({
-        error: 'No active dataset available. Please upload a CSV dataset to analyze price sensitivity.',
-      });
-    }
-
-    const { product_id } = req.query;
-    const targetProd = (product_id as string) || activeRecords[0]?.product_id;
-    const prodRecords = activeRecords.filter(r => r.product_id === targetProd);
-
-    if (activeMetadata.available_fields?.price !== true || !prodRecords.some(r => r.price > 0)) {
-      return res.status(400).json({
-        error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
-      });
-    }
-
-    const result = computePriceElasticity(prodRecords, activeMetadata?.available_fields);
-    res.json({
-      product_id: targetProd,
-      product_name: prodRecords[0]?.product_name || targetProd,
-      ...result,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: 'Price sensitivity calculation failed: ' + err.message });
+  if (!activeMetadata || activeRecords.length === 0) {
+    return res.status(400).json({ error: 'No active dataset. Upload a CSV before price-sensitivity analysis.' });
   }
+  const targetProd = (typeof req.query.product_id === 'string' ? req.query.product_id : '') || activeRecords[0]?.product_id;
+  const transactionRecords = activeRecords.filter(record => record.product_id === targetProd);
+  if (activeMetadata.available_fields?.price !== true || !transactionRecords.some(record => record.price > 0)) {
+    return res.status(400).json({
+      error: 'Price sensitivity is unavailable because complete, mapped unit-price observations are not available. Revenue-derived prices are only scenario seeds and are never used to fit elasticity.',
+    });
+  }
+  const productDayRecords = aggregateDailyDemand(transactionRecords);
+  const result = computePriceElasticity(productDayRecords, activeMetadata.available_fields);
+  res.json({
+    product_id: targetProd,
+    product_name: transactionRecords[0]?.product_name || targetProd,
+    observation_grain: 'daily_product',
+    transaction_rows: transactionRecords.length,
+    product_day_observations: productDayRecords.length,
+    ...result,
+  });
 });
 
-// 10. Scenario Management (CRUD)
 app.get('/api/scenarios', (_req: Request, res: Response) => {
   res.json(savedScenarios);
 });
