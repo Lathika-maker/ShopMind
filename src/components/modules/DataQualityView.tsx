@@ -91,8 +91,8 @@ export const DataQualityView: React.FC<DataQualityViewProps> = ({
           label="Date Span"
           value={`${quality.date_range_days} days`}
           subtext={`${metadata.date_range.start} → ${metadata.date_range.end}`}
-          contextNote="Inclusive calendar span"
-          trend={{ value: 'From uploaded dates', neutral: true }}
+          contextNote={`${quality.unique_recorded_dates ?? 'N/A'} recorded dates; ${quality.unobserved_calendar_days ?? 0} dates without rows (not imputed as zero sales)`}
+          trend={{ value: (quality.unobserved_calendar_days || 0) > 0 ? 'Coverage gaps present' : 'No unobserved dates in span', neutral: true }}
         />
       </div>
 
