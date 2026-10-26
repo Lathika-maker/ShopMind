@@ -179,7 +179,7 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
     forecastMetrics = {
       algorithm: forecast.model_id,
       metrics: forecast.metrics,
-      test_period: forecast.test_period,
+      test_period: forecast.metrics.test_period,
       observation_grain: 'one aggregated observation per recorded product-day',
       date_coverage: summarizeDateCoverage(dailyModelRows),
     };
