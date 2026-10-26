@@ -257,8 +257,8 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
 }
 
 export async function answerDatasetQuestion(input: DatasetQuestionInput): Promise<DatasetQuestionAnswer> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.startsWith('MY_')) {
     throw new DatasetQuestionError(
       'Gemini AI is not configured. Set GEMINI_API_KEY in the server environment (for example, your local .env) and restart the server.',
       503,
