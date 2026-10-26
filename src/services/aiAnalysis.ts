@@ -176,12 +176,25 @@ export function buildDatasetQuestionContext(input: DatasetQuestionInput): Record
       0.8,
       metadata.available_fields
     );
+    const naiveBaseline = trainAndEvaluateForecast(
+      dailyModelRows,
+      'naive_last',
+      0.8,
+      metadata.available_fields
+    );
     forecastMetrics = {
       algorithm: forecast.model_id,
       metrics: forecast.metrics,
-      test_period: forecast.metrics.test_period,
+      naive_last_baseline: {
+        model_id: naiveBaseline.model_id,
+        metrics: naiveBaseline.metrics,
+        same_chronological_holdout: true,
+      },
       observation_grain: 'one aggregated observation per recorded product-day',
       date_coverage: summarizeDateCoverage(dailyModelRows),
+      small_holdout_warning: forecast.metrics.test_sample_size < 30
+        ? 'Fewer than 30 holdout observations; performance comparisons are descriptive and unstable.'
+        : null,
     };
   }
 
