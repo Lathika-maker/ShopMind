@@ -296,18 +296,39 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
                 : 'N/A'
             }
             subtext="Variance explained"
-            contextNote={forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 < 0 ? 'Worse than constant mean' : 'Out-of-sample'}
+            contextNote={
+              forecastResult.metrics.test_sample_size < 30
+                ? `Small holdout (N = ${forecastResult.metrics.test_sample_size}); interpret R² cautiously`
+                : forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 < 0
+                  ? 'Worse than constant-mean benchmark'
+                  : 'Out-of-sample holdout'
+            }
             trend={{
-              value: forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 > 0.5 ? 'Strong Fit' : 'Moderate',
-              isPositive: forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 > 0.5,
+              value: forecastResult.metrics.test_sample_size < 30
+                ? 'Small Test Sample'
+                : forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 > 0.5
+                  ? 'R² > 0.5'
+                  : 'R² ≤ 0.5',
+              isPositive: forecastResult.metrics.test_sample_size >= 30 && forecastResult.metrics.r2 !== null && forecastResult.metrics.r2 > 0.5,
+              neutral: forecastResult.metrics.test_sample_size < 30,
             }}
           />
           <KPICard
             label="Mean Absolute Pct Error (MAPE)"
             value={`${forecastResult.metrics.mape}%`}
             subtext="Relative percentage error"
-            contextNote="Across positive test units"
-            trend={{ value: forecastResult.metrics.mape < 20 ? 'High Accuracy' : 'Normal Retail Variance', isPositive: forecastResult.metrics.mape < 20 }}
+            contextNote={forecastResult.metrics.test_sample_size < 30
+              ? `Descriptive only on small holdout (N = ${forecastResult.metrics.test_sample_size})`
+              : 'Across positive test units'}
+            trend={{
+              value: forecastResult.metrics.test_sample_size < 30
+                ? 'Small Test Sample'
+                : forecastResult.metrics.mape < 20
+                  ? 'MAPE < 20%'
+                  : 'MAPE ≥ 20%',
+              isPositive: forecastResult.metrics.test_sample_size >= 30 && forecastResult.metrics.mape < 20,
+              neutral: forecastResult.metrics.test_sample_size < 30,
+            }}
           />
         </div>
       )}
