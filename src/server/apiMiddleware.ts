@@ -28,6 +28,7 @@ import {
 } from '../services/calculations.ts';
 import { parseAndValidateCSV, ColumnMappingConfig } from '../services/csvParser.ts';
 import { answerDatasetQuestion, DatasetQuestionError } from '../services/aiAnalysis.ts';
+import { generateEmpiricalInsights } from '../services/insights.ts';
 
 // Runtime starts empty. Only a validated user-uploaded CSV activates a dataset.
 let activeMetadata: DatasetMetadata | null = null;
@@ -911,124 +912,15 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
   }
 
   if (req.method === 'GET' && pathname === '/api/insights') {
-    if (activeRecords.length === 0) {
+    if (!activeMetadata || activeRecords.length === 0) {
       return sendJson(res, 200, []);
     }
-
-    // Select primary product from active dataset
-    const primaryProdId = activeRecords[0].product_id;
-    const primaryProdName = activeRecords[0].product_name || primaryProdId;
-    const primaryRecords = activeRecords.filter(r => r.product_id === primaryProdId);
-    const dailyRecords = aggregateDailyDemand(primaryRecords);
-
-    // Price elasticity uses transaction-level rows; volume forecasting/regimes use product-day aggregates.
-    const elast = computePriceElasticity(primaryRecords, activeMetadata?.available_fields);
-    const pricedRecords = activeMetadata?.available_fields?.price === true
-      ? primaryRecords.filter(record => record.price > 0)
-      : [];
-    const meanPrice = pricedRecords.length
-      ? pricedRecords.reduce((sum, record) => sum + record.price, 0) / pricedRecords.length
-      : null;
-    const meanUnits = primaryRecords.length
-      ? primaryRecords.reduce((sum, record) => sum + record.units_sold, 0) / primaryRecords.length
-      : 0;
-
-    // 2. Empirical Demand Regimes at daily grain
-    const regimesResult = dailyRecords.length >= 14 ? detectDemandRegimes(dailyRecords, 14) : null;
-    const highSummary = regimesResult?.summary.find(s => s.regime === 'high');
-    const lowSummary = regimesResult?.summary.find(s => s.regime === 'low');
-
-    // 3. Chronological Forecast Model Benchmark at daily grain
-    const forecast = dailyRecords.length >= 10
-      ? trainAndEvaluateForecast(dailyRecords, 'linear_regression', 0.8, activeMetadata?.available_fields)
-      : null;
-
-    // 4. Commercial Scenario Constraint & Downside Audit
-    const highRiskScen = savedScenarios.find(s => !s.is_feasible || s.stock_out_risk_percent > activeConstraints.max_stock_out_risk_pct);
-    const topScen = savedScenarios.find(s => s.is_feasible) || savedScenarios[0];
-
-    const insights: InsightItem[] = [];
-
-    // Only report price elasticity when genuine unit-price values and a sufficient
-    // sample are available. Revenue or zero-filled missing prices cannot support it.
-    if (activeMetadata?.available_fields?.price === true && primaryRecords.some(record => record.price > 0) && elast.sufficiency !== 'insufficient') {
-      insights.push({
-        id: 'ins_price_elasticity',
-        category: 'price_sensitivity',
-        title: `Empirical Price Elasticity: ${primaryProdName}`,
-        observed: `Estimated empirical elasticity coefficient of ${elast.elasticity.toFixed(2)} (95% CI: [${elast.confidence_interval_95[0].toFixed(2)}, ${elast.confidence_interval_95[1].toFixed(2)}], p = ${elast.p_value.toFixed(4)}).`,
-        supporting_data: `Evaluated on ${elast.sample_size} active observations (R² = ${(elast.r_squared || 0).toFixed(3)}). Average price: ${meanPrice!.toFixed(2)}, mean transaction volume: ${meanUnits.toFixed(1)} units.`,
-        why_it_matters: elast.elasticity < -1
-          ? `Demand is price-elastic (coefficient ${elast.elasticity.toFixed(2)} < -1.0). Strategic promotional markdown stimulates more than proportional volume expansion.`
-          : `Demand is price-inelastic (coefficient ${elast.elasticity.toFixed(2)} >= -1.0). Protect price floors to preserve gross margin rather than discounting.`,
-        possible_action: elast.elasticity < -1
-          ? 'Calibrate promotional markdown depth to capture incremental volume while monitoring inventory replenishment lead time.'
-          : 'Hold prestige pricing and avoid broad-scale markdowns that dilute margin without proportional volume lift.',
-        uncertainty_limitations: 'Calculated via Log-Log Ordinary Least Squares with promotion controls. Macro inflation, competitor matching, and local seasonality can shift demand curves.',
-        severity: Math.abs(elast.elasticity) > 1.5 ? 'high' : 'medium',
-      });
-    }
-
-    if (regimesResult && highSummary) {
-      insights.push({
-        id: 'ins_demand_regime',
-        category: 'demand_regime',
-        title: `Demand Regime Dynamics: ${primaryProdName}`,
-        observed: `${highSummary.percentage}% of recorded product-day observations are classified as High Demand (Z > +0.95), while ${lowSummary?.percentage || 0}% are classified as Low Demand (Z < -0.95).`,
-        supporting_data: `A 14-observation rolling window identified average high-regime demand of ${highSummary.average_demand} units per recorded product-day vs ${lowSummary?.average_demand || 0} during low-regime observations. Calendar-date gaps are not imputed.`,
-        why_it_matters: 'Static reorder points create acute stock-out vulnerabilities during transition periods into high demand regimes.',
-        possible_action: 'Shift safety inventory targets from fixed day-coverage units to dynamic regime-adaptive replenishment schedules.',
-        uncertainty_limitations: 'The rolling Z-score uses recorded product-day observations; missing calendar dates are not imputed, so irregular source coverage can affect regime interpretation.',
-        severity: highSummary.percentage > 20 ? 'high' : 'medium',
-      });
-    }
-
-    if (forecast) {
-      insights.push({
-        id: 'ins_forecast_metrics',
-        category: 'forecast_quality',
-        title: `Chronological Model Evaluation: ${primaryProdName}`,
-        observed: `Multiple Linear Regression achieves MAE = ${forecast.metrics.mae} units and RMSE = ${forecast.metrics.rmse} units on out-of-sample test period.`,
-        supporting_data: `Evaluated across ${forecast.metrics.test_sample_size} chronological test observations (${forecast.metrics.test_period.start} → ${forecast.metrics.test_period.end}) with zero future data leakage.`,
-        why_it_matters: 'Establishes mathematically validated residual bounds to calculate replenishment safety stock and inventory coverage.',
-        possible_action: 'Incorporate competitor price variance and marketing calendar features into automated weekly retraining cycles.',
-        uncertainty_limitations: 'Prediction residuals widen during volatile promotional weekends and external holiday events.',
-        severity: 'low',
-      });
-    }
-
-    if (highRiskScen) {
-      insights.push({
-        id: 'ins_scenario_risk',
-        category: 'inventory_risk',
-        title: `Constraint Breach Alert: ${highRiskScen.name}`,
-        observed: !highRiskScen.is_feasible
-          ? `Scenario breaches active policy constraints: ${highRiskScen.violated_constraints.join('; ')}.`
-          : `High stock-out exposure of ${highRiskScen.stock_out_risk_percent}% (${highRiskScen.unmet} unmet units).`,
-        supporting_data: `Allocated inventory of ${highRiskScen.inventory} units against expected demand of ${highRiskScen.demand} units (${highRiskScen.product_name}).`,
-        why_it_matters: 'Execution without adjustment risks stockouts, customer dissatisfaction, and forfeited operating revenue.',
-        possible_action: 'Increase inventory allocation or temper promotional discounts in Decision Studio prior to executive sign-off.',
-        uncertainty_limitations: 'Calculated using deterministic simulation assumptions under simulated scenario pricing.',
-        severity: 'high',
-      });
-    } else if (topScen) {
-      insights.push({
-        id: 'ins_scenario_risk',
-        category: 'decision_opportunity',
-        title: `Commercial Feasibility Confirmed: ${topScen.name}`,
-        observed: `All ${savedScenarios.length} active scenarios satisfy hard margin floors (≥${activeConstraints.min_profit_margin_pct}%) and risk bounds.`,
-        supporting_data: `Top-ranked candidate delivers ${formatCurrency(topScen.estimated_profit, activeMetadata?.currency_code)} operating profit with ${topScen.profit_margin_pct}% margin and ${topScen.stock_out_risk_percent}% stock-out risk. ${currencyContext(activeMetadata?.currency_code)}`,
-        why_it_matters: 'Commercial portfolio maintains sound margin protection without unhedged inventory shortages.',
-        possible_action: 'Run Stress Testing module to verify downside resilience under an extreme -25% demand contraction shock.',
-        uncertainty_limitations: 'Dependent on supplier cost stability and absence of aggressive competitor price wars.',
-        severity: 'low',
-      });
-    }
-
-    return sendJson(res, 200, insights.map(item => ({
-      ...item,
-      evidence_grain: item.category === 'price_sensitivity' ? 'transaction' : 'daily_product',
-    })));
+    return sendJson(res, 200, generateEmpiricalInsights(
+      activeRecords,
+      activeMetadata,
+      savedScenarios,
+      activeConstraints
+    ));
   }
 
   if (next) next();
