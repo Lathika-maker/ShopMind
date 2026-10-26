@@ -243,7 +243,7 @@ export default function App() {
             )}
 
             {activeTab === 'insights' && (
-              <InsightsView key={metadata?.id ?? 'no-dataset'} onNavigate={setActiveTab} />
+              <InsightsView key={metadata?.id ?? 'no-dataset'} metadata={metadata} onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'settings' && (
