@@ -119,11 +119,11 @@ export function simulateScenario(
       is_feasible = false;
     }
     if (constraints.max_price_ceiling && effective_price > constraints.max_price_ceiling) {
-      violated_constraints.push(`Price $${effective_price.toFixed(2)} exceeds ceiling $${constraints.max_price_ceiling}`);
+      violated_constraints.push(`Effective selling price ${effective_price.toFixed(2)} exceeds configured ceiling ${constraints.max_price_ceiling} (amounts use the active dataset currency).`);
       is_feasible = false;
     }
     if (constraints.min_price_floor && effective_price < constraints.min_price_floor) {
-      violated_constraints.push(`Price $${effective_price.toFixed(2)} below floor $${constraints.min_price_floor}`);
+      violated_constraints.push(`Effective selling price ${effective_price.toFixed(2)} is below configured floor ${constraints.min_price_floor} (amounts use the active dataset currency).`);
       is_feasible = false;
     }
   }
