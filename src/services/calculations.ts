@@ -871,9 +871,13 @@ export function computePriceElasticity(
   const ci_lower = rawElasticity - 1.96 * se_elasticity;
   const ci_upper = rawElasticity + 1.96 * se_elasticity;
 
-  let elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic' = 'inelastic';
+  let elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic' | 'positive_association' = 'inelastic';
   const absElast = Math.abs(rawElasticity);
-  if (absElast > 1.8) elasticity_label = 'highly_elastic';
+  if (rawElasticity > 0) {
+    // A positive fitted coefficient is not the conventional downward-sloping
+    // demand response; report direction rather than calling it price-elastic.
+    elasticity_label = 'positive_association';
+  } else if (absElast > 1.8) elasticity_label = 'highly_elastic';
   else if (absElast > 1.1) elasticity_label = 'elastic';
   else if (absElast >= 0.9 && absElast <= 1.1) elasticity_label = 'unitary';
 
