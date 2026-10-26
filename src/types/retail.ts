@@ -187,7 +187,7 @@ export interface PriceSensitivityResult {
   transaction_rows?: number;
   product_day_observations?: number;
   elasticity: number; // percentage change in demand per 1% change in price
-  elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic';
+  elasticity_label: 'highly_elastic' | 'elastic' | 'unitary' | 'inelastic' | 'positive_association';
   confidence_interval_95: [number, number];
   p_value: number;
   r_squared: number;
