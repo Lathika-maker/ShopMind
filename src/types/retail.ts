@@ -61,6 +61,10 @@ export interface DataQualityReport {
   missing_values_by_column: Record<string, number>;
   negative_values_by_column: Record<string, number>;
   date_range_days: number;
+  /** Unique calendar dates with at least one source row across the full dataset. */
+  unique_recorded_dates?: number;
+  /** Calendar dates inside the inclusive span with no source rows; not interpreted as zero sales. */
+  unobserved_calendar_days?: number;
   completeness_score: number; // 0 to 100
   issues: ValidationIssue[];
   summary_stats: {
