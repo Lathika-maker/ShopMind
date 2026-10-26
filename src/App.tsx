@@ -119,19 +119,26 @@ export default function App() {
   };
 
   // Update business constraints
-  const handleUpdateConstraints = async (updated: BusinessConstraints) => {
+  const handleUpdateConstraints = async (updated: BusinessConstraints): Promise<boolean> => {
     try {
       const res = await fetch('/api/constraints', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
       });
-      if (res.ok) {
-        setConstraints(updated);
-        fetchScenarios();
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({}));
+        console.error('Server rejected constraint update:', result.error || res.statusText);
+        return false;
       }
+
+      const savedConstraints = await res.json();
+      setConstraints(savedConstraints);
+      await fetchScenarios();
+      return true;
     } catch (err) {
       console.error('Failed to update constraints:', err);
+      return false;
     }
   };
 
