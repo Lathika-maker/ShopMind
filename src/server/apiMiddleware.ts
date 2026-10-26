@@ -640,8 +640,16 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
         return sendJson(res, 400, { error: 'Training split must be greater than 50% and less than 100% so a meaningful chronological test set remains.' });
       }
       const forecast = trainAndEvaluateForecast(dailyRecords, algorithm, train_ratio, activeMetadata.available_fields);
+      const naiveBaseline = trainAndEvaluateForecast(dailyRecords, 'naive_last', train_ratio, activeMetadata.available_fields);
       return sendJson(res, 200, {
         ...forecast,
+        benchmarks: {
+          naive_last: {
+            model_id: naiveBaseline.model_id,
+            metrics: naiveBaseline.metrics,
+            same_chronological_holdout: true,
+          },
+        },
         observation_grain: 'daily_product',
         transaction_rows: transactionRecords.length,
         daily_observations: dailyRecords.length,
