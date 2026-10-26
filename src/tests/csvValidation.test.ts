@@ -444,6 +444,9 @@ console.log('\n--- 9. Testing Column Mapping & Header Inferences ---');
   assert(idAndNameMapping.product_name === 'product_name', 'separate product name remains mapped independently');
   assert(idAndNameMapping.price === 'unit_price', 'unit price is mapped only from a unit-price-like header');
 
+  const preferredNameMapping = inferColumnMapping(['date', 'product', 'product_name', 'units']);
+  assert(preferredNameMapping.product_name === 'product_name', 'specific product_name header takes priority over generic product');
+
   const summaryResult = parseAndValidateCSV(summaryCSV, undefined, 'Retail Summary');
   assert(summaryResult.success === true, 'Summary CSV with date and units should be accepted for demand analysis');
   assert(summaryResult.records![0].category === 'North', 'Region value is preserved as category');
