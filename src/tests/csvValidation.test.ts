@@ -868,4 +868,48 @@ console.log('\n--- 19. Testing shared empirical insight generation ---');
   console.log('  ✓ Shared insight findings include a baseline comparison and suppress unsupported price claims.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (19/19 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 20: Elasticity sample size uses recorded product-days
+// =========================================================================
+console.log('\n--- 20. Testing price elasticity grain for repeated same-day transactions ---');
+
+{
+  const rows: DataRecord[] = [];
+  for (let day = 1; day <= 18; day++) {
+    const date = `2025-03-${String(day).padStart(2, '0')}`;
+    const price = day % 3 === 0 ? 12 : day % 3 === 1 ? 10 : 11;
+    const units = 45 - day + (day % 4);
+    for (let transaction = 0; transaction < 2; transaction++) {
+      rows.push({
+        id: `TX-${day}-${transaction}`,
+        date,
+        product_id: 'SKU-ELASTIC-GRAIN',
+        product_name: 'Elasticity Grain Fixture',
+        category: '',
+        units_sold: transaction === 0 ? units : 2,
+        price,
+        unit_cost: 0,
+        discount_pct: 0,
+        promo_active: false,
+        inventory_on_hand: 0,
+        competitor_price: 0,
+      });
+    }
+  }
+
+  const dailyRows = aggregateDailyDemand(rows);
+  assert(rows.length === 36, 'Fixture contains 36 source transactions');
+  assert(dailyRows.length === 18, 'Source transactions roll up to 18 recorded product-days');
+  const estimate = computePriceElasticity(dailyRows, {
+    price: true,
+    promo_active: false,
+    discount_pct: false,
+    competitor_price: false,
+  });
+  assert(estimate.sample_size === 18, 'Elasticity N equals the product-day sample, not transaction count');
+  assert(estimate.sufficiency !== 'insufficient', '18 recorded product-days meet the minimum sample size');
+
+  console.log('  ✓ Repeated same-day transactions no longer inflate elasticity sample N.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (20/20 TEST SUITES)\n=============================================================\n');
