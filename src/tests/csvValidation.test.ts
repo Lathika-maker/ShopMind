@@ -789,4 +789,36 @@ console.log('\n--- 17. Testing aggregate-only AI analysis context ---');
   console.log('  ✓ AI context uses aggregate evidence, excludes raw rows, and validates product scope.');
 }
 
-console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (17/17 TEST SUITES)\n=============================================================\n');
+// =========================================================================
+// TEST SUITE 18: Constraint messages stay currency-neutral
+// =========================================================================
+console.log('\n--- 18. Testing currency-neutral price constraint messages ---');
+
+{
+  const result = simulateScenario({
+    name: 'Currency Neutral Floor',
+    product_id: 'SKU-CURRENCY',
+    selling_price: 10,
+    unit_cost: 5,
+    discount_pct: 0,
+    promotion_cost: 0,
+    advertising_cost: 0,
+    inventory: 100,
+  }, 20, 'Currency Product', 'historical_average', {
+    min_profit_margin_pct: 0,
+    max_stock_out_risk_pct: 100,
+    min_inventory_coverage_units: 0,
+    min_price_floor: 15,
+    max_price_ceiling: 0,
+    weights: { profit_weight: 0.5, stockout_weight: 0.3, leftover_weight: 0.2 },
+  });
+  const floorMessage = result.violated_constraints.find(message => message.includes('configured floor'));
+  assert(Boolean(floorMessage), 'Price-floor violation is returned');
+  assert(!floorMessage!.includes('
+), 'Constraint messages do not assume USD');
+  assert(floorMessage!.includes('active dataset currency'), 'Constraint message explains its amount convention');
+
+  console.log('  ✓ Constraint messages avoid currency-symbol assumptions.');
+}
+
+console.log('\n=============================================================\n🎉 ALL CSV VALIDATION REGRESSION TESTS PASSED (18/18 TEST SUITES)\n=============================================================\n');
