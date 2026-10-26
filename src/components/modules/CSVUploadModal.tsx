@@ -319,11 +319,7 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setFile(null);
-                    setHeaders([]);
-                    setPreviewRows([]);
-                  }}
+                  onClick={clearSelectedFile}
                   className="text-xs text-slate-400 hover:text-rose-400 transition-colors"
                 >
                   Change File
@@ -346,9 +342,12 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
 
               {/* Column Mapping Grid */}
               <div>
-                <div className="text-xs font-semibold text-slate-300 mb-2">
+                <div className="text-xs font-semibold text-slate-300 mb-1">
                   Verify & Map Field Schema
                 </div>
+                <p className="text-[11px] leading-relaxed text-slate-500 mb-3">
+                  Fields are suggested from your CSV headers. Unavailable fields stay unselected; total revenue is not treated as unit price, and missing cost or inventory values are never invented. You can edit every mapping.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-900/60 rounded border border-slate-800">
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
