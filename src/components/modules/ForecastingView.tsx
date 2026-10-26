@@ -162,6 +162,32 @@ export const ForecastingView: React.FC<ForecastingViewProps> = ({ metadata, onOp
         </div>
       </div>
 
+      <section className={`rounded-lg border p-4 space-y-2 ${metadata.is_synthetic
+        ? 'border-amber-700/70 bg-amber-950/20'
+        : 'border-slate-800 bg-[#0F172A]'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs font-semibold text-white">Active data source</div>
+          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded ${metadata.is_synthetic
+            ? 'bg-amber-900/50 text-amber-300'
+            : 'bg-emerald-950/60 text-emerald-300'}`}>
+            {metadata.is_synthetic ? 'Synthetic benchmark — not observed retail data' : 'Uploaded dataset'}
+          </span>
+        </div>
+        <div className="text-sm text-slate-200 font-semibold">{metadata.name}</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] text-slate-400">
+          <div><span className="block text-slate-500">Rows</span><span className="text-slate-200 font-mono">{metadata.row_count.toLocaleString()}</span></div>
+          <div><span className="block text-slate-500">Products</span><span className="text-slate-200 font-mono">{productOptions.length.toLocaleString()}</span></div>
+          <div><span className="block text-slate-500">Date range</span><span className="text-slate-200 font-mono">{metadata.date_range?.start || 'N/A'} → {metadata.date_range?.end || 'N/A'}</span></div>
+          <div><span className="block text-slate-500">Source currency</span><span className="text-slate-200 font-mono">{metadata.currency_code && metadata.currency_code !== 'UNSPECIFIED' ? metadata.currency_code : 'Unspecified'}</span></div>
+        </div>
+        {metadata.is_synthetic && (
+          <p className="text-[11px] text-amber-200 leading-relaxed">
+            These records are a synthetic test fixture. Do not present their forecast or metrics as findings from your uploaded CSV. Upload your retail CSV to evaluate the real data.
+          </p>
+        )}
+      </section>
+
+
       {/* Model Selection & Tuning Bar */}
       <div className="p-4 bg-[#0F172A] border border-slate-800 rounded-lg flex flex-wrap items-center gap-4 text-xs">
         {/* Product Selector */}
