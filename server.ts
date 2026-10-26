@@ -370,6 +370,11 @@ app.get('/api/dataset/product-summary', (req: Request, res: Response) => {
     total_units: Math.round(totalUnits * 100) / 100,
     average_units_per_record: Math.round(totalUnits / records.length * 100) / 100,
     mean_units_per_observed_product_day: baseline?.meanUnitsPerObservedProductDay ?? null,
+    demand_baseline_observation_days: baseline?.observedProductDays ?? null,
+    demand_baseline_quality: (baseline?.observedProductDays ?? 0) < 14 ? 'limited_history' : (baseline?.observedProductDays ?? 0) < 30 ? 'intermediate_history' : 'broader_recorded_history',
+    demand_baseline_warning: (baseline?.observedProductDays ?? 0) < 14
+      ? 'Limited history: fewer than 14 recorded product-days. This 30-day baseline is an exploratory extrapolation, not a trained forecast.'
+      : null,
     demand_baseline_method: 'Mean units per distinct recorded product-day extrapolated to 30 days; missing dates are not treated as zero sales.',
     estimated_30_day_demand_baseline: baseline?.baseDemand ?? null,
     average_unit_price: weightedAverage('price'),
