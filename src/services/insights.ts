@@ -65,11 +65,12 @@ export function generateEmpiricalInsights(
   // actually supports a variable-price estimate, not merely the first CSV row.
   if (metadata.available_fields?.price === true) {
     for (const product of products) {
-      const priced = product.rows.filter(record => Number.isFinite(record.price) && record.price > 0);
+      const priceDays = aggregateDailyDemand(product.rows);
+      const priced = priceDays.filter(record => Number.isFinite(record.price) && record.price > 0);
       const uniquePrices = new Set(priced.map(record => Math.round(record.price * 100) / 100));
       if (priced.length < 15 || uniquePrices.size < 2) continue;
 
-      const estimate = computePriceElasticity(product.rows, metadata.available_fields);
+      const estimate = computePriceElasticity(priceDays, metadata.available_fields);
       if (estimate.sufficiency === 'insufficient') continue;
 
       const name = productName(product.rows, product.productId);
@@ -98,7 +99,7 @@ export function generateEmpiricalInsights(
         category: 'price_sensitivity',
         title: `Observed Price Sensitivity: ${name}`,
         observed: `Log-log OLS elasticity estimate ${estimate.elasticity.toFixed(2)}; approximate 95% interval [${ciLower.toFixed(2)}, ${ciUpper.toFixed(2)}], approximate p-value ${estimate.p_value.toFixed(4)}.`,
-        supporting_data: `N = ${estimate.sample_size} transaction observations; R² = ${estimate.r_squared.toFixed(3)}; quantity-weighted recorded unit price = ${formatCurrency(weightedMean(priced, 'price'), currency)}. Controls reported by the fitted model: ${estimate.confounders_controlled.join(', ') || 'none'}.`,
+        supporting_data: `N = ${estimate.sample_size} recorded product-day observations; R² = ${estimate.r_squared.toFixed(3)}; quantity-weighted recorded unit price = ${formatCurrency(weightedMean(priceDays, 'price'), currency)}. Controls reported by the fitted model: ${estimate.confounders_controlled.join(', ') || 'none'}.`,
         why_it_matters: whyItMatters,
         possible_action: possibleAction,
         uncertainty_limitations: estimate.methodology_notes,
