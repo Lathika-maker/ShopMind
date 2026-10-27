@@ -160,6 +160,21 @@ export default function App() {
         <LandingView
           onEnterWorkspace={(targetTab = 'overview') => setActiveTab(targetTab)}
           onOpenUpload={() => setIsUploadOpen(true)}
+          onLoadDemo={async () => {
+            try {
+              const response = await fetch('/api/dataset/demo', { method: 'POST' });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.error || 'Unable to load demo data');
+              setMetadata(result.metadata || null);
+              setQuality(result.quality || null);
+              setScenarios([]);
+              await fetchScenarios();
+              setActiveTab('overview');
+            } catch (error) {
+              console.error('Could not load SHOPMIND demo dataset:', error);
+              window.alert(error instanceof Error ? error.message : 'Unable to load demo data');
+            }
+          }}
         />
       ) : (
         <div className="flex-1 flex overflow-hidden">
