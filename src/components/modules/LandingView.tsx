@@ -23,11 +23,13 @@ import { formatCurrency } from '../../services/formatting.ts';
 interface LandingViewProps {
   onEnterWorkspace: (targetTab?: string) => void;
   onOpenUpload: () => void;
+  onLoadDemo: () => void;
 }
 
 export const LandingView: React.FC<LandingViewProps> = ({
   onEnterWorkspace,
   onOpenUpload,
+  onLoadDemo,
 }) => {
   // Live interactive preview simulator in the hero
   const [heroPrice, setHeroPrice] = useState<number>(240);
@@ -78,6 +80,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
               >
                 <span>Launch Analytics Console</span>
                 <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={onLoadDemo}
+                className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-[#F3E5CA] bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800/80 rounded transition-all cursor-pointer flex items-center gap-2"
+              >
+                <BarChart2 className="w-4 h-4 text-emerald-300" />
+                <span>Explore Demo Dataset</span>
               </button>
 
               <button
