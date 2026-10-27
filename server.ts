@@ -8,7 +8,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertRecordsToCSV } from './src/data/syntheticDemo.ts';
+import { convertRecordsToCSV, generateSyntheticDataset } from './src/data/syntheticDemo.ts';
 import { formatCurrency, currencyContext } from './src/services/formatting.ts';
 import {
   DataRecord,
@@ -438,6 +438,23 @@ app.get('/api/dataset/records', (req: Request, res: Response) => {
 });
 
 // 4. Reset or clear the active dataset. Runtime never switches to demo data.
+app.post('/api/dataset/demo', (_req: Request, res: Response) => {
+  try {
+    const demo = generateSyntheticDataset();
+    activeMetadata = { ...demo.metadata, created_at: new Date().toISOString() };
+    activeRecords = demo.records;
+    savedScenarios = [];
+    res.json({
+      message: 'Synthetic demonstration dataset loaded.',
+      metadata: activeMetadata,
+      quality: computeQualityReport(activeRecords, activeMetadata.available_fields, activeMetadata.mapped_fields),
+      notice: 'Synthetic demo data only — results are illustrative, not real business findings.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Could not load demo dataset: ${err.message}` });
+  }
+});
+
 app.post('/api/dataset/reset', (_req: Request, res: Response) => {
   activeMetadata = null;
   activeRecords = [];
