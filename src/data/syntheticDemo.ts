@@ -189,15 +189,17 @@ export function generateSyntheticDataset(): {
   return { metadata, records };
 }
 
-// Convert dataset to downloadable CSV format
+// Convert the active dataset to CSV, including any source-specific fields preserved at ingestion.
 export function convertRecordsToCSV(records: DataRecord[]): string {
   if (records.length === 0) return '';
-  const headers = [
+
+  const canonicalHeaders = [
     'date',
     'product_id',
     'product_name',
     'category',
     'units_sold',
+    'revenue',
     'price',
     'unit_cost',
     'discount_pct',
@@ -205,20 +207,35 @@ export function convertRecordsToCSV(records: DataRecord[]): string {
     'inventory_on_hand',
     'competitor_price',
   ];
+  const customHeaders = Array.from(new Set(
+    records.flatMap(record => Object.keys(record.custom_attributes || {}))
+  )).filter(header => !canonicalHeaders.includes(header));
+  const headers = [...canonicalHeaders, ...customHeaders];
 
-  const rows = records.map(r => [
-    r.date,
-    r.product_id,
-    `"${r.product_name.replace(/"/g, '""')}"`,
-    `"${r.category.replace(/"/g, '""')}"`,
-    r.units_sold,
-    r.price,
-    r.unit_cost,
-    r.discount_pct,
-    r.promo_active ? 1 : 0,
-    r.inventory_on_hand,
-    r.competitor_price,
-  ]);
+  const escapeCSV = (value: unknown): string => {
+    if (value === undefined || value === null) return '';
+    const text = String(value);
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  };
 
-  return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  const rows = records.map(record => {
+    const row: Record<string, unknown> = {
+      date: record.date,
+      product_id: record.product_id,
+      product_name: record.product_name,
+      category: record.category,
+      units_sold: record.units_sold,
+      revenue: record.revenue,
+      price: record.price,
+      unit_cost: record.unit_cost,
+      discount_pct: record.discount_pct,
+      promo_active: record.promo_active ? 1 : 0,
+      inventory_on_hand: record.inventory_on_hand,
+      competitor_price: record.competitor_price,
+      ...(record.custom_attributes || {}),
+    };
+    return headers.map(header => escapeCSV(row[header]));
+  });
+
+  return [headers.map(escapeCSV).join(','), ...rows.map(row => row.join(','))].join('\n');
 }
