@@ -629,6 +629,15 @@ export function parseAndValidateCSV(
   const compCol = effectiveMapping.competitor_price;
   const revenueCol = effectiveMapping.revenue;
 
+  // Keep every source column that was not mapped to a canonical field. These values
+  // stay available for custom retail attributes, inspection, and clean CSV export.
+  const mappedSourceHeaders = new Set(
+    Object.values(effectiveMapping).filter(
+      (value): value is string => typeof value === 'string' && headers.includes(value)
+    )
+  );
+  const customHeaders = headers.filter(header => !mappedSourceHeaders.has(header));
+
   // Revenue is total sales value, not a unit price. Keep it separate so it cannot
   // accidentally create a mechanically derived price/quantity relationship.
   if (!priceCol) {
@@ -836,6 +845,9 @@ export function parseAndValidateCSV(
       units_sold: Math.round(units * 100) / 100,
       ...(revenue !== undefined ? { revenue } : {}),
       ...(rowMissingFields.length > 0 ? { data_missing_fields: rowMissingFields } : {}),
+      ...(customHeaders.length > 0
+        ? { custom_attributes: Object.fromEntries(customHeaders.map(header => [header, row[header] ?? ''])) }
+        : {}),
       price: Math.round(price * 100) / 100,
       unit_cost: Math.round(unitCost * 100) / 100,
       discount_pct: Math.round(discountPct * 10) / 10,
@@ -908,6 +920,7 @@ export function parseAndValidateCSV(
     product_items: productItems,
     categories: uniqueCats,
     is_synthetic: false,
+    custom_fields: customHeaders,
     mapped_fields: {
       date: Boolean(dateCol),
       product_id: Boolean(prodIdCol || prodNameCol),
