@@ -41,6 +41,10 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
     );
   }
 
+  // Additional source columns remain visible even when SHOPMIND does not assign them
+  // a predefined analytic meaning (e.g. brand, channel, supplier, loyalty tier).
+  const customFields = metadata.custom_fields || [];
+
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -227,18 +231,21 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                 <th className="py-3 px-4 text-center">Promo</th>
                 <th className="py-3 px-4 text-right">Inventory</th>
                 <th className="py-3 px-4 text-right">Competitor ({currencyLabel(metadata.currency_code)})</th>
+                {customFields.map(field => (
+                  <th key={field} className="py-3 px-4 whitespace-nowrap">{field}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono text-slate-300 text-xs tabular-nums">
               {isLoading ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-500 font-sans">
+                  <td colSpan={12 + customFields.length} className="py-8 text-center text-slate-500 font-sans">
                     Loading records from active dataset...
                   </td>
                 </tr>
               ) : records.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-500 font-sans">
+                  <td colSpan={12 + customFields.length} className="py-8 text-center text-slate-500 font-sans">
                     No matching records found for the applied filters.
                   </td>
                 </tr>
@@ -281,6 +288,11 @@ export const DataExplorerView: React.FC<DataExplorerViewProps> = ({
                     <td className="py-2.5 px-4 text-right text-slate-400">
                       {metadata.available_fields?.competitor_price === false ? <span className="text-slate-500">N/A</span> : formatCurrency(r.competitor_price, metadata.currency_code)}
                     </td>
+                    {customFields.map(field => (
+                      <td key={field} className="py-2.5 px-4 font-sans text-slate-300 whitespace-nowrap">
+                        {r.custom_attributes?.[field] ?? '—'}
+                      </td>
+                    ))}
                   </tr>
                 ))
               )}
