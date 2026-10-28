@@ -369,7 +369,7 @@ export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
 
   // Backward-compatible dimension mapping: region/store/location can act as a
   // category-like grouping only when no true product taxonomy field is present.
-  // The original field is still preserved verbatim in source_attributes below.
+  // Other unmapped source columns are preserved separately as custom_attributes.
   if (!mapping.category) {
     const dimension = normalized.find(candidate =>
       !claimed.has(candidate.raw) &&
