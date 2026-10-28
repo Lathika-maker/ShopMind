@@ -163,7 +163,21 @@ export default function App() {
           onLoadDemo={async () => {
             try {
               const response = await fetch('/api/dataset/demo', { method: 'POST' });
-              const result = await response.json();
+              const responseText = await response.text();
+              let result: any = {};
+              if (responseText.trim()) {
+                try {
+                  result = JSON.parse(responseText);
+                } catch {
+                  throw new Error(
+                    'The demo API returned a non-JSON response. Restart the SHOPMIND dev server with `npm run dev` and try again.'
+                  );
+                }
+              } else {
+                throw new Error(
+                  'The demo API returned an empty response. Restart the SHOPMIND dev server with `npm run dev` and try again.'
+                );
+              }
               if (!response.ok) throw new Error(result.error || 'Unable to load demo data');
               setMetadata(result.metadata || null);
               setQuality(result.quality || null);
