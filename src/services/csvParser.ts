@@ -147,44 +147,240 @@ export function parseCSVText(content: string): string[][] {
 /**
  * Infer column names to canonical fields
  */
+function normalizeHeaderName(raw: string): string {
+  return raw
+    .trim()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+/**
+ * Infer canonical retail fields from common, ERP, POS, ecommerce, and analyst-defined
+ * header names. Unknown columns are intentionally left unmapped and preserved as custom
+ * attributes; they must not be guessed into a financial field merely because they are numeric.
+ */
 export function inferColumnMapping(headers: string[]): ColumnMappingConfig {
-  const mapping: ColumnMappingConfig = {};
-  const candidates = headers.map((raw) => ({
-    raw,
-    // Split CamelCase headers before lowercasing (e.g. InvoiceDate → invoice_date).
-    clean: raw.trim().replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, ''),
-  }));
-  const pick = (
-    field: keyof ColumnMappingConfig,
-    test: (header: string) => boolean,
-    preferred: string[] = []
-  ) => {
-    if (mapping[field]) return;
-    const found =
-      preferred
-        .map(name => candidates.find(candidate => candidate.clean === name))
-        .find(candidate => candidate !== undefined) ??
-      candidates.find(candidate => test(candidate.clean));
-    if (found) Object.assign(mapping, { [field]: found.raw });
+  type MappableField =
+    | 'date' | 'product_id' | 'product_name' | 'category' | 'units_sold'
+    | 'revenue' | 'unit_cost' | 'price' | 'discount_pct' | 'inventory_on_hand'
+    | 'promo_active' | 'competitor_price';
+
+  const normalized = headers.map(raw => ({ raw, clean: normalizeHeaderName(raw) }));
+  const aliases: Record<MappableField, string[]> = {
+    date: [
+      'date', 'day', 'datetime', 'timestamp', 'time_stamp', 'transaction_date',
+      'transaction_datetime', 'trans_date', 'txn_date', 'txn_datetime', 'invoice_date',
+      'invoice_datetime', 'order_date', 'order_datetime', 'sales_date', 'sale_date',
+      'date_of_sale', 'business_date', 'business_day', 'receipt_date', 'bill_date',
+      'posting_date', 'posted_date', 'created_at', 'sold_at', 'order_created_at',
+      'sales_day', 'calendar_date', 'date_key',
+    ],
+    product_id: [
+      'product_id', 'productid', 'product_code', 'product_number', 'product_no',
+      'item_id', 'item_code', 'item_number', 'item_no', 'sku', 'sku_id', 'skuid',
+      'stock_code', 'stockcode', 'barcode', 'upc', 'ean', 'gtin', 'plu', 'variant_id',
+      'article_number', 'material_id', 'inventory_item_id', 'style_code', 'item_key',
+      'product_key',
+    ],
+    product_name: [
+      'product_name', 'productname', 'item_name', 'itemname', 'description',
+      'item_description', 'product_description', 'product_title', 'item_title',
+      'title', 'product', 'item', 'article_name', 'style_name', 'merchandise_name',
+      'product_label', 'item_label',
+    ],
+    category: [
+      'category', 'product_category', 'merchandise_category', 'subcategory',
+      'sub_category', 'product_subcategory', 'department', 'dept', 'product_family',
+      'family', 'merchandise_class', 'product_class',
+    ],
+    units_sold: [
+      'units', 'unit', 'units_sold', 'unit_sold', 'sold_units', 'quantity', 'qty',
+      'sales_qty', 'sales_quantity', 'quantity_sold', 'qty_sold', 'units_sold_qty',
+      'volume_sold', 'sales_volume', 'demand', 'demand_units', 'net_quantity',
+      'net_units', 'item_quantity', 'ordered_quantity', 'order_quantity', 'ordered_qty',
+      'qty_ordered', 'quantity_ordered', 'shipped_quantity', 'shipped_qty',
+      'quantity_shipped', 'fulfilled_units', 'units_fulfilled', 'dispatch_qty',
+      'invoiced_qty', 'sales_units', 'units_out', 'quantity_out', 'line_quantity',
+      'line_qty', 'item_qty', 'qty_per_line', 'quantity_per_line',
+    ],
+    revenue: [
+      'revenue', 'total_revenue', 'sales_value', 'gross_sales', 'net_sales',
+      'total_sales', 'sales_amount', 'net_amount', 'gross_amount', 'line_total',
+      'line_amount', 'total_amount', 'transaction_total', 'invoice_total',
+      'extended_price', 'turnover', 'sales_value_amount', 'total_line_value',
+      'gross_revenue', 'net_revenue', 'total_line_amount', 'sales_total',
+    ],
+    unit_cost: [
+      'unit_cost', 'unitcost', 'cost_per_unit', 'cost_price', 'purchase_price',
+      'purchase_cost', 'supplier_cost', 'supplier_price', 'acquisition_cost',
+      'landed_cost', 'landed_unit_cost', 'avg_cost', 'average_cost', 'average_unit_cost',
+      'avg_unit_cost', 'standard_cost', 'material_cost', 'wholesale_cost', 'unit_cogs',
+      'cogs', 'cost_of_goods_sold', 'cost', 'item_cost', 'product_cost',
+    ],
+    price: [
+      'price', 'unit_price', 'unitprice', 'selling_price', 'sellingprice',
+      'retail_price', 'sale_price', 'sales_price', 'item_price', 'product_price',
+      'price_per_unit', 'average_selling_price', 'avg_selling_price', 'current_price',
+      'current_selling_price', 'net_unit_price', 'gross_unit_price', 'effective_price',
+      'retail_unit_price', 'sale_rate', 'mrp',
+    ],
+    discount_pct: [
+      'discount', 'discount_pct', 'discount_percent', 'discount_percentage',
+      'discount_rate', 'markdown', 'markdown_pct', 'markdown_percent', 'markdown_rate',
+      'promo_discount_pct', 'promotion_discount_pct', 'promotion_percentage',
+      'offer_percentage', 'price_reduction_pct', 'discount_ratio',
+    ],
+    inventory_on_hand: [
+      'inventory', 'inventory_on_hand', 'inventory_qty', 'inventory_quantity',
+      'inventory_count', 'current_inventory', 'stock', 'stock_on_hand', 'stock_onhand',
+      'on_hand', 'onhand', 'on_hand_qty', 'qty_on_hand', 'quantity_on_hand',
+      'available_stock', 'stock_available', 'available_inventory', 'available_qty',
+      'quantity_in_stock', 'stock_qty', 'stock_quantity', 'stock_balance',
+      'closing_stock', 'ending_stock', 'ending_inventory', 'current_stock',
+      'remaining_stock', 'warehouse_stock', 'available_to_sell',
+    ],
+    promo_active: [
+      'promo', 'promotion', 'promo_active', 'promotion_active', 'campaign',
+      'campaign_active', 'is_promo', 'is_promotion', 'promo_flag', 'promotion_flag',
+      'campaign_flag', 'promo_indicator', 'promotion_indicator', 'on_promotion',
+      'is_on_promotion', 'on_sale', 'sale_flag', 'offer_active', 'is_discounted',
+    ],
+    competitor_price: [
+      'competitor_price', 'competitorprice', 'competitor_unit_price', 'comp_price',
+      'comp_unit_price', 'rival_price', 'rival_unit_price', 'competitor_selling_price',
+      'competitor_retail_price',
+    ],
   };
 
-  // Exact and high-confidence names are matched first to avoid overlapping fields,
-  // e.g. "product" must not be mapped to both Product ID and Product Name.
-  pick('date', h => ['date', 'day', 'timestamp', 'datetime', 'invoice_date', 'order_date', 'transaction_date', 'sales_date'].includes(h) || /(^|_)(date|datetime|timestamp)$/.test(h));
-  pick('product_id', h => ['product_id', 'productid', 'sku', 'sku_id', 'item_id', 'itemid', 'stockcode', 'stock_code', 'product_code', 'item_code', 'variant_id', 'barcode'].includes(h));
-  pick('product_name', h => ['product_name', 'productname', 'item_name', 'itemname', 'description', 'product', 'item', 'title'].includes(h) || /(^|_)(product_name|item_name|description|title)$/.test(h), ['product_name', 'item_name', 'description', 'title', 'product', 'item']);
-  pick('category', h => ['category', 'product_category', 'department', 'dept', 'family', 'region', 'store', 'store_name', 'country', 'location'].includes(h) || /(^|_)(category|department|family|region|store|country)$/.test(h));
-  pick('units_sold', h => ['units', 'unit_sold', 'units_sold', 'quantity', 'qty', 'quantity_sold', 'sales_quantity', 'volume', 'volume_sold', 'sales_volume', 'demand', 'demand_units'].includes(h) || /(^|_)(units_sold|quantity|qty|demand|volume)(_sold|_units)?$/.test(h));
-  pick('revenue', h => ['revenue', 'sales_value', 'gross_sales', 'net_sales', 'total_sales', 'turnover', 'line_total', 'total_amount', 'amount'].includes(h) || /(^|_)(revenue|turnover|sales_value|total_amount)$/.test(h));
-  pick('price', h => ['price', 'unit_price', 'selling_price', 'retail_price', 'sale_price', 'unitprice', 'sellingprice'].includes(h) || /(^|_)(unit_price|selling_price|retail_price|sale_price|price)$/.test(h), ['unit_price', 'selling_price', 'retail_price', 'sale_price', 'price']);
-  pick('unit_cost', h => ['unit_cost', 'cost', 'cogs', 'cost_price', 'purchase_price', 'wholesale_cost'].includes(h) || /(^|_)(unit_cost|cogs|cost_price)$/.test(h));
-  pick('discount_pct', h => ['discount', 'discount_pct', 'discount_percent', 'discount_percentage', 'markdown', 'markdown_pct'].includes(h) || /(^|_)(discount|discount_pct|discount_percent|markdown)$/.test(h));
-  pick('inventory_on_hand', h => ['inventory', 'inventory_on_hand', 'stock', 'stock_on_hand', 'on_hand', 'on_hand_qty', 'available_stock', 'available_inventory'].includes(h) || /(^|_)(inventory|stock_on_hand|on_hand)$/.test(h));
-  pick('promo_active', h => ['promo', 'promotion', 'promo_active', 'promotion_active', 'campaign', 'campaign_active'].includes(h) || /(^|_)(promo_active|promotion_active|campaign_active)$/.test(h));
-  pick('competitor_price', h => ['competitor_price', 'competitorprice', 'comp_price', 'competitor_unit_price'].includes(h) || /(^|_)(competitor_price|comp_price)$/.test(h));
+  const fieldOrder: MappableField[] = [
+    'date', 'product_id', 'product_name', 'category', 'units_sold', 'revenue',
+    'unit_cost', 'competitor_price', 'price', 'discount_pct', 'inventory_on_hand',
+    'promo_active',
+  ];
+  const mapping: ColumnMappingConfig = {};
+  const claimed = new Set<string>();
+
+  const scoreHeader = (field: MappableField, header: string): number => {
+    const tokens = header.split('_').filter(Boolean);
+    const tokenSet = new Set(tokens);
+    const list = aliases[field];
+    if (list.includes(header)) return 100 + header.length / 100;
+    if (list.some(alias => header.endsWith('_' + alias) || header.startsWith(alias + '_'))) {
+      return 88 + Math.min(header.length, 30) / 100;
+    }
+
+    if (field === 'date' &&
+        (tokenSet.has('date') || tokenSet.has('datetime') || tokenSet.has('timestamp') ||
+         (tokenSet.has('day') && ['business', 'sales', 'order', 'transaction'].some(t => tokenSet.has(t))))) return 82;
+
+    if (field === 'product_id') {
+      const productObject = tokenSet.has('product') || tokenSet.has('item') || tokenSet.has('article') || tokenSet.has('material') || tokenSet.has('style');
+      const identity = ['id', 'code', 'number', 'no', 'key', 'barcode', 'sku', 'upc', 'ean', 'gtin'].some(t => tokenSet.has(t));
+      const transactionIdentity = ['invoice', 'order', 'transaction', 'customer', 'supplier', 'vendor', 'store', 'location'].some(t => tokenSet.has(t));
+      if (productObject && identity && !transactionIdentity) return 86;
+      if (['sku', 'barcode', 'upc', 'ean', 'gtin'].some(t => tokenSet.has(t))) return 90;
+    }
+
+    if (field === 'product_name') {
+      const subject = tokenSet.has('product') || tokenSet.has('item') || tokenSet.has('article') || tokenSet.has('style');
+      const descriptor = ['name', 'description', 'title', 'label', 'text'].some(t => tokenSet.has(t));
+      if (subject && descriptor) return 85;
+    }
+
+    if (field === 'category') {
+      const taxonomy = ['category', 'subcategory', 'department', 'dept', 'family', 'class'].some(t => tokenSet.has(t));
+      if (taxonomy && !tokenSet.has('customer') && !tokenSet.has('store')) return 84;
+    }
+
+    if (field === 'units_sold') {
+      const quantity = ['quantity', 'qty', 'units', 'volume', 'demand'].some(t => tokenSet.has(t));
+      const nonSalesQuantity = ['inventory', 'stock', 'onhand', 'on_hand', 'available', 'opening', 'closing', 'return', 'returned', 'refund'].some(t => tokenSet.has(t));
+      const context = ['sold', 'sales', 'order', 'ordered', 'shipped', 'fulfilled', 'dispatch', 'invoiced', 'demand', 'out', 'line'].some(t => tokenSet.has(t));
+      if (quantity && context && !nonSalesQuantity) return 84;
+    }
+
+    if (field === 'revenue') {
+      const salesTerm = tokenSet.has('sales') || tokenSet.has('revenue') || tokenSet.has('turnover');
+      const valueTerm = ['value', 'amount', 'total', 'gross', 'net', 'revenue', 'turnover'].some(t => tokenSet.has(t));
+      if ((salesTerm && valueTerm) || tokenSet.has('revenue') || tokenSet.has('turnover')) return 82;
+    }
+
+    if (field === 'competitor_price') {
+      const competitor = tokenSet.has('competitor') || tokenSet.has('rival');
+      if (competitor && tokenSet.has('price')) return 90;
+    }
+
+    if (field === 'price') {
+      const priceTerm = tokenSet.has('price') || tokenSet.has('rate');
+      const conflictingContext = ['competitor', 'rival', 'market', 'wholesale', 'cost', 'purchase', 'shipping'].some(t => tokenSet.has(t));
+      const ownPriceContext = ['unit', 'item', 'product', 'retail', 'selling', 'sale', 'current', 'effective', 'average', 'avg', 'net', 'gross', 'mrp'].some(t => tokenSet.has(t));
+      if (priceTerm && ownPriceContext && !conflictingContext) return 81;
+    }
+
+    if (field === 'unit_cost') {
+      const costTerm = tokenSet.has('cost') || tokenSet.has('cogs');
+      const conflictingContext = ['shipping', 'freight', 'transport', 'delivery', 'marketing', 'advertising', 'promotion', 'campaign', 'operating', 'labor'].some(t => tokenSet.has(t));
+      const unitContext = ['unit', 'item', 'product', 'purchase', 'supplier', 'acquisition', 'landed', 'average', 'avg', 'standard', 'material', 'wholesale', 'goods'].some(t => tokenSet.has(t));
+      if (costTerm && unitContext && !conflictingContext) return 81;
+    }
+
+    if (field === 'discount_pct') {
+      const discountTerm = tokenSet.has('discount') || tokenSet.has('markdown') || tokenSet.has('reduction');
+      const percentageTerm = ['pct', 'percent', 'percentage', 'rate', 'ratio'].some(t => tokenSet.has(t));
+      const monetaryTerm = ['amount', 'value', 'currency'].some(t => tokenSet.has(t));
+      if (discountTerm && percentageTerm && !monetaryTerm) return 82;
+      if (discountTerm && tokens.length === 1) return 72;
+    }
+
+    if (field === 'inventory_on_hand') {
+      const stockTerm = ['inventory', 'stock', 'onhand'].some(t => tokenSet.has(t));
+      const quantityTerm = ['qty', 'quantity', 'units', 'balance', 'count', 'available', 'remaining', 'closing', 'ending', 'current'].some(t => tokenSet.has(t));
+      if (stockTerm && quantityTerm && !tokenSet.has('code') && !tokenSet.has('id')) return 83;
+    }
+
+    if (field === 'promo_active') {
+      const promotionTerm = ['promo', 'promotion', 'campaign', 'offer'].some(t => tokenSet.has(t));
+      const flagTerm = ['active', 'flag', 'indicator', 'is', 'on', 'applied', 'used'].some(t => tokenSet.has(t));
+      if (promotionTerm && flagTerm) return 81;
+    }
+
+    return 0;
+  };
+
+  for (const field of fieldOrder) {
+    const ranked = normalized
+      .filter(candidate => !claimed.has(candidate.raw))
+      .map(candidate => ({ ...candidate, score: scoreHeader(field, candidate.clean) }))
+      .filter(candidate => candidate.score > 0)
+      .sort((a, b) => b.score - a.score || b.clean.length - a.clean.length);
+
+    if (ranked.length > 0) {
+      const selected = ranked[0];
+      Object.assign(mapping, { [field]: selected.raw });
+      claimed.add(selected.raw);
+    }
+  }
+
+  // Backward-compatible dimension mapping: region/store/location can act as a
+  // category-like grouping only when no true product taxonomy field is present.
+  // The original field is still preserved verbatim in source_attributes below.
+  if (!mapping.category) {
+    const dimension = normalized.find(candidate =>
+      !claimed.has(candidate.raw) &&
+      ['region', 'store', 'store_name', 'store_id', 'country', 'location', 'sales_channel', 'channel'].includes(candidate.clean)
+    );
+    if (dimension) mapping.category = dimension.raw;
+  }
 
   return mapping;
 }
+
 /**
  * Parse common retail numeric formats without guessing decimal conventions.
  * Accepts currency symbols, thousands separators, and an optional percent sign.
