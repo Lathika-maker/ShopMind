@@ -19,6 +19,8 @@ export interface DataRecord {
   is_weekend?: boolean;
   /** Names of optional mapped columns whose value was blank on this row. */
   data_missing_fields?: string[];
+  /** Values from source columns that were not mapped to a canonical analytical field. */
+  custom_attributes?: Record<string, string>;
 }
 
 export interface DatasetMetadata {
@@ -39,6 +41,8 @@ export interface DatasetMetadata {
   product_items?: { id: string; name: string; category?: string }[];
   categories: string[];
   is_synthetic: boolean;
+  /** Original source headers preserved as additional, unmodeled attributes. */
+  custom_fields?: string[];
   /** Fields explicitly present and mapped from the uploaded file. */
   available_fields?: Record<string, boolean>;
   /** True when the uploaded file contains a mapped column, even if some values are incomplete. */
