@@ -33,6 +33,7 @@ import {
   computeDecisionOutcomes,
 } from '../services/calculations.ts';
 import { formatCurrency } from '../services/formatting.ts';
+import { convertRecordsToCSV } from '../data/syntheticDemo.ts';
 import { buildDatasetQuestionContext, DatasetQuestionError, consumeDatasetQuestionCapacity } from '../services/aiAnalysis.ts';
 import { generateEmpiricalInsights } from '../services/insights.ts';
 import {
@@ -474,7 +475,27 @@ console.log('\n--- 9. Testing Column Mapping & Header Inferences ---');
   assert(customResult.records![0].units_sold === 30, 'Volume mapped to units_sold');
   assert(customResult.records![0].price === 14.50, 'Price correctly mapped');
 
-  console.log('  ✓ Column mapping engine successfully resolves non-standard retail column formats.');
+  // Extended retail schema: map unfamiliar labels and preserve all unrecognized attributes.
+  const flexibleRetailCSV = `Transaction Timestamp,Item SKU,Product Description,Store Department,Qty Sold,Average Selling Price,Average Unit Cost,Ending Inventory,Promo Flag,Net Sales Amount,Customer Segment,Sales Channel,Warehouse Code
+2025-01-01T10:30:00Z,SKU-X,Wireless Headphones,Electronics,12,79.99,40.00,45,true,959.88,Gold,"Online, App",WH-7
+2025-01-02T10:30:00Z,SKU-X,Wireless Headphones,Electronics,14,79.99,40.00,42,false,1119.86,Silver,Store,WH-7
+2025-01-03T10:30:00Z,SKU-X,Wireless Headphones,Electronics,16,74.99,40.00,38,true,1199.84,Gold,Online,WH-9`;
+  const flexibleResult = parseAndValidateCSV(flexibleRetailCSV, undefined, 'Flexible Retail Schema');
+  assert(flexibleResult.success, 'Flexible named retail attributes should ingest successfully');
+  assert(flexibleResult.metadata?.custom_fields?.includes('Customer Segment'), 'Unmapped customer segment is exposed as a custom field');
+  assert(flexibleResult.metadata?.custom_fields?.includes('Sales Channel'), 'Unmapped sales channel is exposed as a custom field');
+  assert(flexibleResult.metadata?.custom_fields?.includes('Warehouse Code'), 'Unmapped warehouse code is exposed as a custom field');
+  assert(flexibleResult.records?.[0].custom_attributes?.['Customer Segment'] === 'Gold', 'Custom string attributes are retained by source header');
+  assert(flexibleResult.records?.[0].custom_attributes?.['Sales Channel'] === 'Online, App', 'Quoted custom values with commas are retained');
+  assert(flexibleResult.metadata?.available_fields?.price === true, 'Average Selling Price is mapped as unit price');
+  assert(flexibleResult.records?.[0].units_sold === 12, 'Qty Sold is mapped to units_sold');
+  assert(flexibleResult.records?.[0].unit_cost === 40, 'Average Unit Cost is mapped to unit cost');
+
+  const flexibleExport = convertRecordsToCSV(flexibleResult.records || []);
+  assert(flexibleExport.includes('Customer Segment'), 'CSV export includes custom field headers');
+  assert(flexibleExport.includes('"Online, App"'), 'CSV export escapes custom attribute values containing commas');
+
+  console.log('  ✓ Column mapping engine resolves non-standard headers and preserves custom attributes.');
 }
 
 // =========================================================================
