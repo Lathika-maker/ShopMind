@@ -265,6 +265,18 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
     !mapping.inventory_on_hand && 'inventory',
   ].filter((value): value is string => Boolean(value));
 
+  const canonicalMappingFields = [
+    'date', 'product_id', 'product_name', 'category', 'units_sold', 'price',
+    'unit_cost', 'discount_pct', 'inventory_on_hand', 'promo_active',
+    'competitor_price', 'revenue',
+  ] as const;
+  const mappedSourceHeaders = new Set(
+    canonicalMappingFields
+      .map(field => mapping[field])
+      .filter((value): value is string => Boolean(value))
+  );
+  const customHeaders = headers.filter(header => !mappedSourceHeaders.has(header));
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
       <div className="bg-[#0F172A] border border-slate-800 rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
@@ -610,6 +622,25 @@ export const CSVUploadModal: React.FC<CSVUploadModalProps> = ({
                     Not present in the CSV: {unavailableBusinessFields.join(', ')}. Analyses requiring these values remain unavailable until the data or an explicit scenario assumption supplies them.
                   </p>
                 )}
+                <div className="pt-2 border-t border-slate-800">
+                  <div className="text-[11px] font-semibold text-slate-300 mb-1">
+                    Additional attributes preserved ({customHeaders.length})
+                  </div>
+                  {customHeaders.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customHeaders.map(header => (
+                        <span key={header} className="rounded bg-indigo-950/60 border border-indigo-900/70 px-2 py-1 text-[10px] text-indigo-200">
+                          {header}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">All source columns are mapped to standard fields.</p>
+                  )}
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Unrecognized columns are retained by their original names and can be inspected and exported. They are not automatically assigned financial meaning.
+                  </p>
+                </div>
               </div>
 
               {/* Data Preview */}
