@@ -5,7 +5,7 @@
 
 import { IncomingMessage, ServerResponse } from 'http';
 import { parse as parseUrl } from 'url';
-import { convertRecordsToCSV } from '../data/syntheticDemo.ts';
+import { convertRecordsToCSV, generateSyntheticDataset } from '../data/syntheticDemo.ts';
 import { formatCurrency, currencyContext } from '../services/formatting.ts';
 import {
   DataRecord,
@@ -620,6 +620,24 @@ export function handleApiRequest(req: IncomingMessage, res: ServerResponse, next
       total_pages: Math.ceil(total / limit),
       records: paginated,
     });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/dataset/demo') {
+    try {
+      const demo = generateSyntheticDataset();
+      activeMetadata = { ...demo.metadata, created_at: new Date().toISOString() };
+      activeRecords = demo.records;
+      savedScenarios = [];
+      return sendJson(res, 200, {
+        message: 'Synthetic demonstration dataset loaded.',
+        metadata: activeMetadata,
+        quality: computeQualityReport(activeRecords, activeMetadata.available_fields, activeMetadata.mapped_fields),
+        notice: 'Synthetic demo data only — results are illustrative, not real business findings.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return sendJson(res, 500, { error: 'Could not load demo dataset: ' + message });
+    }
   }
 
   if (req.method === 'POST' && pathname === '/api/dataset/reset') {
