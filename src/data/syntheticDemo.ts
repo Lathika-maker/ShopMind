@@ -199,7 +199,7 @@ export function convertRecordsToCSV(records: DataRecord[]): string {
     'product_name',
     'category',
     'units_sold',
-    'revenue',
+    ...(records.some(record => typeof record.revenue === 'number') ? ['revenue'] : []),
     'price',
     'unit_cost',
     'discount_pct',
